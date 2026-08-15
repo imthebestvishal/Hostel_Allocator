@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Portal - GGSIPU Hostel Allocator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --c-primary: hsl(228, 52%, 29%);
+            --c-accent: hsl(41, 100%, 47%);
+            --c-dark: hsl(228, 30%, 10%);
+            --c-text: hsl(228, 15%, 20%);
+            --c-muted: hsl(228, 10%, 50%);
+            --c-border: hsl(228, 15%, 88%);
+            --c-surface: hsl(228, 20%, 97%);
+            --navbar-height: 68px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            color: var(--c-text);
+            background-color: var(--c-surface);
+            line-height: 1.5;
+        }
+
+        /* Utility */
+        .hidden { display: none !important; }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 16px;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+        .btn-primary {
+            background-color: var(--c-primary);
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: var(--c-dark);
+        }
+        .btn-outline {
+            background-color: transparent;
+            border: 1px solid var(--c-border);
+            color: var(--c-text);
+        }
+        .btn-outline:hover {
+            border-color: var(--c-primary);
+            color: var(--c-primary);
+        }
+
+        /* Inputs */
+        .form-group {
+            margin-bottom: 16px;
+        }
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: var(--c-text);
+        }
+        .form-control {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--c-border);
+            border-radius: 6px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .form-control:focus {
+            border-color: var(--c-primary);
+        }
+        select.form-control {
+            appearance: none;
+            background: white url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center;
+        }
+        
+        /* Navbar */
+        .navbar {
+            height: var(--navbar-height);
+            background-color: white;
+            border-bottom: 1px solid var(--c-border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .navbar-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 100%;
+        }
+        .navbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: var(--c-primary);
+            font-weight: 700;
+            font-size: 18px;
+        }
+        .navbar-brand img {
+            height: 40px;
+        }
+        .navbar-user {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background-color: var(--c-primary);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        /* STATE 1: Login */
+        #login-state {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--c-primary), var(--c-dark));
+        }
+        .login-card {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            text-align: center;
+        }
+        .login-logo {
+            width: 60px;
+            margin-bottom: 16px;
+        }
+        .login-title {
+            font-size: 24px;
+            color: var(--c-primary);
+            margin-bottom: 8px;
+        }
+        .login-subtitle {
+            color: var(--c-muted);
+            font-size: 14px;
+            margin-bottom: 32px;
+        }
+        .login-card form {
+            text-align: left;
+        }
+        .login-card .btn-primary {
+            width: 100%;
+            margin-top: 16px;
+            padding: 12px;
+        }
+        .register-link {
+            display: block;
+            margin-top: 24px;
+            font-size: 14px;
+            color: var(--c-primary);
+            text-decoration: none;
+        }
+        .register-link:hover {
+            text-decoration: underline;
+        }
+
+        /* STATE 2: Dashboard */
+        #dashboard-state {
+            min-height: 100vh;
+        }
+        .dashboard-layout {
+            padding: 32px 0;
+        }
+        
+        /* Tabs */
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid var(--c-border);
+            margin-bottom: 32px;
+            overflow-x: auto;
+        }
+        .tab-btn {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            color: var(--c-muted);
+            font-weight: 500;
+            cursor: pointer;
+            font-size: 15px;
+            white-space: nowrap;
+        }
+        .tab-btn:hover {
+            color: var(--c-primary);
+        }
+        .tab-btn.active {
+            color: var(--c-primary);
+            border-bottom-color: var(--c-primary);
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Cards */
+        .card {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid var(--c-border);
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            border-bottom: 1px solid var(--c-border);
+            padding-bottom: 12px;
+        }
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--c-primary);
+        }
+        
+        /* Grid Layouts */
+        .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+        
+        /* Badges */
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 100px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .badge-success { background: #e0f2fe; color: #0284c7; }
+        .badge-warning { background: #fef3c7; color: #d97706; }
+        
+        /* Data List */
+        .data-list {
+            list-style: none;
+        }
+        .data-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--c-border);
+        }
+        .data-item:last-child {
+            border-bottom: none;
+        }
+        .data-label {
+            color: var(--c-muted);
+            font-size: 14px;
+        }
+        .data-value {
+            font-weight: 500;
+            font-size: 14px;
+            text-align: right;
+        }
+
+        /* Timeline */
+        .timeline {
+            position: relative;
+            padding-left: 32px;
+            margin: 24px 0;
+        }
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 11px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--c-border);
+        }
+        .timeline-item {
+            position: relative;
+            margin-bottom: 24px;
+        }
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -32px;
+            top: 4px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: white;
+            border: 2px solid var(--c-border);
+        }
+        .timeline-item.completed::before {
+            background: var(--c-primary);
+            border-color: var(--c-primary);
+        }
+        .timeline-item.active::before {
+            border-color: var(--c-primary);
+            border-width: 4px;
+        }
+        .timeline-date {
+            font-size: 12px;
+            color: var(--c-muted);
+            margin-bottom: 4px;
+        }
+        .timeline-title {
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .timeline-desc {
+            font-size: 13px;
+            color: var(--c-muted);
+            margin-top: 4px;
+        }
+
+        /* Table */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--c-border);
+            font-size: 14px;
+        }
+        th {
+            font-weight: 600;
+            color: var(--c-muted);
+            background: var(--c-surface);
+        }
+
+        /* Room Map Placeholder */
+        .room-map {
+            background: var(--c-surface);
+            border: 1px dashed var(--c-muted);
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            color: var(--c-muted);
+            margin-bottom: 24px;
+        }
+        .room-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 10px;
+            margin-top: 24px;
+        }
+        .room-cell {
+            aspect-ratio: 1;
+            background: white;
+            border: 1px solid var(--c-border);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .room-cell.my-room {
+            background: var(--c-primary);
+            color: white;
+            border-color: var(--c-primary);
+        }
+
+        /* Allotment Letter */
+        .allotment-letter {
+            border: 1px solid var(--c-border);
+            padding: 40px;
+            border-radius: 4px;
+            background: white;
+            font-family: serif;
+        }
+        .letter-header {
+            text-align: center;
+            margin-bottom: 32px;
+            border-bottom: 2px solid var(--c-dark);
+            padding-bottom: 16px;
+        }
+        .letter-header img {
+            height: 60px;
+            margin-bottom: 8px;
+        }
+        .letter-body {
+            font-size: 15px;
+            line-height: 1.6;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .modal-content {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            width: 100%;
+            max-width: 500px;
+            transform: translateY(20px);
+            transition: transform 0.2s;
+        }
+        .modal-overlay.active .modal-content {
+            transform: translateY(0);
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: var(--c-muted);
+        }
+
+        /* Toast */
+        #toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: var(--c-dark);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 100px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 2000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        #toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* Notice Card */
+        .notice-card {
+            padding: 20px;
+            border: 1px solid var(--c-border);
+            border-radius: 8px;
+            margin-bottom: 16px;
+            transition: box-shadow 0.2s;
+        }
+        .notice-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        .notice-date {
+            font-size: 12px;
+            color: var(--c-muted);
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        .notice-title {
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 8px;
+            color: var(--c-primary);
+        }
+        .notice-body {
+            font-size: 14px;
+            color: var(--c-text);
+        }
+        
+        @media (max-width: 768px) {
+            .grid-2, .grid-3 { grid-template-columns: 1fr; }
+            .login-card { padding: 24px; }
+            .tabs { overflow-x: auto; }
+            .room-grid { grid-template-columns: repeat(4, 1fr); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- STATE 1: LOGIN -->
+    <div id="login-state">
+        <div class="login-card">
+            <img src="assets/logo/ipu-logo.png" alt="GGSIPU Logo" class="login-logo" onerror="this.src='https://via.placeholder.com/60?text=Logo'">
+            <h1 class="login-title">Student Portal</h1>
+            <p class="login-subtitle">Track your hostel application</p>
+            
+            <form id="login-form">
+                <div class="form-group">
+                    <label class="form-label" for="enrollment">Enrollment Number</label>
+                    <input type="text" id="enrollment" class="form-control" placeholder="e.g. 00116403220" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="dob">Date of Birth (Password)</label>
+                    <input type="date" id="dob" class="form-control" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Login</button>
+            </form>
+            
+            <a href="register.html" class="register-link">New here? Register</a>
+        </div>
+    </div>
+
+    <!-- STATE 2: DASHBOARD -->
+    <div id="dashboard-state" class="hidden">
+        <!-- Navbar -->
+        <nav class="navbar">
+            <div class="container navbar-container">
+                <a href="#" class="navbar-brand">
+                    <img src="assets/logo/ipu-logo.png" alt="GGSIPU Logo" onerror="this.src='https://via.placeholder.com/40?text=Logo'">
+                    Hostel Allocator
+                </a>
+                <div class="navbar-user">
+                    <div class="user-info">
+                        <div class="avatar">R</div>
+                        <span style="font-weight: 500; font-size: 14px; display: none; @media(min-width: 600px){display:block;}">Rahul Sharma</span>
+                    </div>
+                    <button id="logout-btn" class="btn btn-outline" style="padding: 6px 12px; font-size: 13px;">Logout</button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="container dashboard-layout">
+            
+            <!-- Tabs -->
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="overview">Overview</button>
+                <button class="tab-btn" data-tab="application">Application</button>
+                <button class="tab-btn" data-tab="room">Room</button>
+                <button class="tab-btn" data-tab="grievance">Grievance</button>
+                <button class="tab-btn" data-tab="notices">Notices</button>
+            </div>
+
+            <!-- TAB: OVERVIEW -->
+            <div id="tab-overview" class="tab-content active">
+                <div class="card" style="background: linear-gradient(135deg, var(--c-primary), hsl(228, 52%, 20%)); color: white;">
+                    <h2 id="overviewHeading" style="font-size: 24px; margin-bottom: 8px;">Welcome back!</h2>
+                    <p style="opacity: 0.8; font-size: 15px;">Your application has been processed. Check your room allotment below.</p>
+                </div>
+
+                <div class="grid-2">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Application Status</h3>
+                            <span class="badge badge-success" id="overviewStatusBadge">Pending</span>
+                        </div>
+                        <ul class="data-list">
+                            <li class="data-item">
+                                <span class="data-label">Application ID</span>
+                                <span class="data-value" id="overviewAppId">GGSIPU-2026</span>
+                            </li>
+                            <li class="data-item">
+                                <span class="data-label">Priority Category</span>
+                                <span class="data-value" id="overviewPriority">Delhi</span>
+                            </li>
+                            <li class="data-item">
+                                <span class="data-label">Submission Date</span>
+                                <span class="data-value" id="overviewDate">15 Aug 2026</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Room Details</h3>
+                        </div>
+                        <ul class="data-list">
+                            <li class="data-item">
+                                <span class="data-label">Hostel Name</span>
+                                <span class="data-value" id="overviewHostel">East Delhi Campus Hostel</span>
+                            </li>
+                            <li class="data-item">
+                                <span class="data-label">Room Number</span>
+                                <span class="data-value" id="overviewRoom">Pending Allocation</span>
+                            </li>
+                            <li class="data-item">
+                                <span class="data-label">Floor</span>
+                                <span class="data-value" id="overviewFloor">-</span>
+                            </li>
+                            <li class="data-item">
+                                <span class="data-label">Roommate</span>
+                                <span class="data-value" id="overviewRoommate">Pending</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="grid-2">
+                    <div class="card">
+                        <h3 class="card-title" style="margin-bottom: 16px;">Quick Links</h3>
+                        <div style="display: flex; flex-direction: column; gap: 12px;">
+                            <button class="btn btn-outline" style="justify-content: flex-start;" onclick="switchTab('application')">View Application</button>
+                            <button class="btn btn-outline" style="justify-content: flex-start;" onclick="switchTab('grievance')">File a Grievance</button>
+                            <button class="btn btn-outline" style="justify-content: flex-start;" onclick="switchTab('notices')">View Notice Board</button>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h3 class="card-title" style="margin-bottom: 16px;">Important Dates</h3>
+                        <ul class="data-list">
+                            <li class="data-item">
+                                <span class="data-label">Application Deadline</span>
+                                <span class="data-value">31 Aug 2026</span>
+                            </li>
+                            <li class="data-item">
+                                <span class="data-label">Result Announcement</span>
+                                <span class="data-value">05 Sep 2026</span>
+                            </li>
+                            <li class="data-item">
+                                <span class="data-label">Reporting & Check-in</span>
+                                <span class="data-value">10-15 Sep 2026</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: APPLICATION -->
+            <div id="tab-application" class="tab-content">
+                <div class="grid-2">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Submitted Application</h3>
+                            <button class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;" onclick="downloadApplicationPDF()">Download PDF</button>
+                        </div>
+                        <ul class="data-list">
+                            <li class="data-item"><span class="data-label">Full Name</span><span class="data-value" id="appFullName">-</span></li>
+                            <li class="data-item"><span class="data-label">Enrollment No</span><span class="data-value" id="appEnrollNo">-</span></li>
+                            <li class="data-item"><span class="data-label">Course & Branch</span><span class="data-value" id="appCourse">-</span></li>
+                            <li class="data-item"><span class="data-label">Current Year</span><span class="data-value" id="appYear">-</span></li>
+                            <li class="data-item"><span class="data-label">Gender</span><span class="data-value" id="appGender">-</span></li>
+                            <li class="data-item"><span class="data-label">Category</span><span class="data-value" id="appCategory">-</span></li>
+                            <li class="data-item"><span class="data-label">Region / State</span><span class="data-value" id="appRegion">-</span></li>
+                            <li class="data-item"><span class="data-label">Distance from Univ</span><span class="data-value" id="appDistance">-</span></li>
+                            <li class="data-item"><span class="data-label">12th Marks (%)</span><span class="data-value" id="appMarks">-</span></li>
+                            <li class="data-item"><span class="data-label">PWD Status</span><span class="data-value" id="appPwd">-</span></li>
+                        </ul>
+                    </div>
+                    
+                    <div class="card">
+                        <h3 class="card-title">Application Timeline</h3>
+                        <div class="timeline">
+                            <div class="timeline-item completed">
+                                <div class="timeline-date" id="timeDate1">15 Aug 2026</div>
+                                <div class="timeline-title">Application Submitted</div>
+                                <div class="timeline-desc">Form completed successfully.</div>
+                            </div>
+                            <div class="timeline-item completed">
+                                <div class="timeline-date" id="timeDate2">Automated</div>
+                                <div class="timeline-title">Verification & Priority Calculation</div>
+                                <div class="timeline-desc">Priority assigned based on university norms.</div>
+                            </div>
+                            <div class="timeline-item active">
+                                <div class="timeline-date" id="timeDate3">In Progress</div>
+                                <div class="timeline-title">Allocation Engine Matching</div>
+                                <div class="timeline-desc" id="timeDesc3">Matching available room inventory.</div>
+                            </div>
+                            <div class="timeline-item" id="timeItem4">
+                                <div class="timeline-date" id="timeDate4">Pending</div>
+                                <div class="timeline-title">Result & Room Allotment</div>
+                                <div class="timeline-desc" id="timeDesc4">Allotment letter dispatch pending.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: ROOM -->
+            <div id="tab-room" class="tab-content">
+                <div class="grid-2">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Hostel Layout</h3>
+                        </div>
+                        <div class="room-map">
+                            <p style="font-weight: 500;" id="mapHostelTitle">East Delhi Campus Hostel</p>
+                            <p style="font-size: 13px; margin-top: 4px;">Highlighted cell is your assigned room</p>
+                            <div class="room-grid" id="mapRoomGrid">
+                                <div class="room-cell">101</div>
+                                <div class="room-cell">102</div>
+                                <div class="room-cell">103</div>
+                                <div class="room-cell">104</div>
+                                <div class="room-cell my-room" id="myRoomCell">Assigned</div>
+                                <div class="room-cell">106</div>
+                            </div>
+                        </div>
+                        <button class="btn btn-outline" style="width: 100%; margin-top: 16px;" onclick="openModal('transfer-modal')">Request Room Transfer</button>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Allotment Letter</h3>
+                            <button class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;" onclick="downloadAllotmentPDF()">Download Letter</button>
+                        </div>
+                        <div class="allotment-letter" id="allotmentLetterBox">
+                            <div class="letter-header">
+                                <img src="assets/logo/ipu-logo.png" alt="Logo" onerror="this.style.display='none'">
+                                <div style="font-weight: bold; font-size: 16px;">GURU GOBIND SINGH INDRAPRASTHA UNIVERSITY</div>
+                                <div style="font-size: 12px; color: #555;">East Delhi Campus, Surajmal Vihar, New Delhi</div>
+                                <div style="font-weight: bold; margin-top: 14px; text-decoration: underline; font-size: 14px;">PROVISIONAL HOSTEL ALLOTMENT LETTER</div>
+                            </div>
+                            <div class="letter-body" style="font-size: 13px; margin-top: 15px;">
+                                <p style="text-align: right; margin-bottom: 15px;" id="letterDate">Date: 15 Aug 2026</p>
+                                <p>To,</p>
+                                <p style="font-weight: bold;" id="letterName">Student Name</p>
+                                <p id="letterEnroll">Enrollment No: -</p>
+                                <br>
+                                <p><strong>Subject:</strong> Provisional Hostel Accommodation Allotment</p>
+                                <br>
+                                <p>Dear Student,</p>
+                                <p>With reference to your application, you are hereby provisionally allotted accommodation as per details below:</p>
+                                <ul style="margin: 12px 0 12px 20px;">
+                                    <li><strong>Hostel:</strong> <span id="letterHostelVal">East Delhi Campus Hostel</span></li>
+                                    <li><strong>Room No:</strong> <span id="letterRoomVal">TBD</span></li>
+                                </ul>
+                                <p>Please report to the Warden Office with original documents and fee receipt for check-in.</p>
+                                <br>
+                                <p style="text-align: right; margin-top: 30px; font-weight: bold;">Chief Warden<br>GGSIPU Hostels</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: GRIEVANCE -->
+            <div id="tab-grievance" class="tab-content">
+                <div class="grid-2">
+                    <div class="card">
+                        <h3 class="card-title" style="margin-bottom: 16px;">File a New Grievance</h3>
+                        <form>
+                            <div class="form-group">
+                                <label class="form-label">Category</label>
+                                <select class="form-control" required>
+                                    <option value="">Select category...</option>
+                                    <option>Room Maintenance Issue</option>
+                                    <option>Roommate Issue</option>
+                                    <option>Mess / Food Quality</option>
+                                    <option>Safety / Security</option>
+                                    <option>Internet / Wi-Fi</option>
+                                    <option>Other</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Subject</label>
+                                <input type="text" class="form-control" placeholder="Brief subject" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Description</label>
+                                <textarea class="form-control" rows="4" placeholder="Detail your issue..." required></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Attach File (Optional)</label>
+                                <input type="file" class="form-control">
+                            </div>
+                            <button type="submit" class="btn btn-primary">Submit Grievance</button>
+                        </form>
+                    </div>
+
+                    <div class="card">
+                        <h3 class="card-title" style="margin-bottom: 16px;">My Grievances</h3>
+                        <div style="overflow-x: auto;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Ticket ID</th>
+                                        <th>Date</th>
+                                        <th>Subject</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>#TK-1042</td>
+                                        <td>02 Sep 2023</td>
+                                        <td>Fan regulator not working</td>
+                                        <td><span class="badge badge-success">Resolved</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>#TK-1185</td>
+                                        <td>14 Sep 2023</td>
+                                        <td>Wi-Fi speed very slow in B wing</td>
+                                        <td><span class="badge badge-warning">In Progress</span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: NOTICES -->
+            <div id="tab-notices" class="tab-content">
+                <div class="card">
+                    <h3 class="card-title" style="margin-bottom: 24px;">Hostel Notice Board</h3>
+                    
+                    <div class="notice-card">
+                        <div class="notice-date">August 20, 2023</div>
+                        <h4 class="notice-title">Hostel Allotment Results Declared (Session 2023-24)</h4>
+                        <p class="notice-body">The hostel allotment list for the current academic session has been released. Students can check their allotted rooms in the portal. Reporting starts from Aug 25.</p>
+                    </div>
+                    
+                    <div class="notice-card">
+                        <div class="notice-date">August 10, 2023</div>
+                        <h4 class="notice-title">Mess Fee Payment Guidelines</h4>
+                        <p class="notice-body">All returning students must clear their previous mess dues before applying for room renewal. Freshers will pay the mess advance during check-in.</p>
+                    </div>
+                    
+                    <div class="notice-card">
+                        <div class="notice-date">July 25, 2023</div>
+                        <h4 class="notice-title">Revised Curfew Timings</h4>
+                        <p class="notice-body">Please note that the hostel gates will now close at 10:00 PM strictly. Late entries will require prior written permission from the Warden.</p>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div class="modal-overlay" id="transfer-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="card-title">Room Transfer Request</h3>
+                <button class="modal-close" onclick="closeModal('transfer-modal')">&times;</button>
+            </div>
+            <form onsubmit="event.preventDefault(); showToast('Transfer request submitted!'); closeModal('transfer-modal'); this.reset();">
+                <div class="form-group">
+                    <label class="form-label">Current Room</label>
+                    <input type="text" class="form-control" value="Shivalik - B-214" disabled>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Reason for Transfer</label>
+                    <select class="form-control" required>
+                        <option value="">Select reason...</option>
+                        <option>Mutual exchange</option>
+                        <option>Medical grounds</option>
+                        <option>Adjustment issues</option>
+                        <option>Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Additional Details</label>
+                    <textarea class="form-control" rows="3" required></textarea>
+                </div>
+                <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px;">
+                    <button type="button" class="btn btn-outline" onclick="closeModal('transfer-modal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Submit Request</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast">Message here</div>
+
+    <script src="api.js"></script>
+    <script>
+        // DOM Elements
+        const loginState = document.getElementById('login-state');
+        const dashboardState = document.getElementById('dashboard-state');
+        const loginForm = document.getElementById('login-form');
+        const logoutBtn = document.getElementById('logout-btn');
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        const tabContents = document.querySelectorAll('.tab-content');
+        const toastEl = document.getElementById('toast');
+        let toastTimeout;
+
+        // Login Handler
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const enroll = document.getElementById('enrollment').value;
+            const dob = document.getElementById('dob').value;
+            
+            if(enroll && dob) {
+                const btn = loginForm.querySelector('button');
+                btn.textContent = 'Loading...';
+                try {
+                    const statusData = await HostelAPI.getStudentStatus(enroll, dob);
+                    if (statusData.error) {
+                        showToast(statusData.error, 'error');
+                        return;
+                    }
+                    
+                    const studentName = statusData.name || 'Student';
+                    document.querySelector('#dashboard-state .avatar').textContent = studentName[0];
+                    const nameSpan = document.querySelector('#dashboard-state .user-info span');
+                    if (nameSpan) nameSpan.textContent = studentName;
+                    
+                    // Populate All Dashboard Tabs Dynamically
+                    populateStudentDashboard(statusData);
+                    
+                    // Update status badge
+                    const statusBadge = document.getElementById('overviewStatusBadge');
+                    if (statusBadge) {
+                        statusBadge.textContent = statusData.status || 'Pending';
+                        if (statusData.status === 'Allocated') statusBadge.className = 'badge badge-success';
+                        else if (statusData.status === 'Waitlisted') statusBadge.className = 'badge badge-warning';
+                        else statusBadge.className = 'badge badge-info';
+                    }
+                    
+                    loginState.classList.add('hidden');
+                    dashboardState.classList.remove('hidden');
+                    showToast('Login successful', 'success');
+                    
+                    loadNotices();
+                } catch(e) {
+                    console.error(e);
+                    showToast('Login failed. Please check your credentials.', 'error');
+                } finally {
+                    btn.textContent = 'Login';
+                }
+            }
+        });
+
+        function populateStudentDashboard(statusData) {
+            const app = statusData.applicationDetails || {};
+            const alloc = statusData.allocation || {};
+
+            const name = statusData.name || app.Name || 'Student';
+            const enroll = statusData.enrollmentNo || app.EnrollmentNo || 'N/A';
+            const status = statusData.status || app.Status || 'Pending';
+            const priority = statusData.priority || app.Priority || 'N/A';
+            const appId = statusData.applicationId || app.ApplicationID || 'GGSIPU-2026';
+
+            // Overview Tab
+            if (document.getElementById('overviewHeading')) document.getElementById('overviewHeading').textContent = `Welcome back, ${name.split(' ')[0]}!`;
+            if (document.getElementById('overviewAppId')) document.getElementById('overviewAppId').textContent = appId;
+            if (document.getElementById('overviewPriority')) document.getElementById('overviewPriority').textContent = `Priority ${priority} (${app.Category || 'Delhi'})`;
+            if (document.getElementById('overviewDate')) document.getElementById('overviewDate').textContent = app.Timestamp ? new Date(app.Timestamp).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }) : '15 Aug 2026';
+
+            if (document.getElementById('overviewHostel')) document.getElementById('overviewHostel').textContent = statusData.allocatedHostel || alloc.HostelName || (app.HostelPref ? app.HostelPref + ' (Preferred)' : 'East Delhi Campus Hostel');
+            if (document.getElementById('overviewRoom')) document.getElementById('overviewRoom').textContent = statusData.allocatedRoom || alloc.RoomNumber || 'Pending Allocation';
+            if (document.getElementById('overviewFloor')) document.getElementById('overviewFloor').textContent = alloc.Floor ? alloc.Floor + ' Floor' : 'TBD';
+            if (document.getElementById('overviewRoommate')) document.getElementById('overviewRoommate').textContent = app.RoommatePreference || 'Auto-Assigned';
+
+            // Application Tab
+            if (document.getElementById('appFullName')) document.getElementById('appFullName').textContent = name;
+            if (document.getElementById('appEnrollNo')) document.getElementById('appEnrollNo').textContent = enroll;
+            if (document.getElementById('appCourse')) document.getElementById('appCourse').textContent = (app.Programme || 'B.Tech') + (app.Branch ? ` (${app.Branch})` : '');
+            if (document.getElementById('appYear')) document.getElementById('appYear').textContent = app.Year ? `${app.Year} Year` : '1st Year';
+            if (document.getElementById('appGender')) document.getElementById('appGender').textContent = app.Gender || 'N/A';
+            if (document.getElementById('appCategory')) document.getElementById('appCategory').textContent = app.Category || 'Delhi';
+            if (document.getElementById('appRegion')) document.getElementById('appRegion').textContent = app.State ? `${app.Category} (${app.State})` : (app.Category || 'Delhi');
+            if (document.getElementById('appDistance')) document.getElementById('appDistance').textContent = `${app.DistanceKm || 0} km`;
+            if (document.getElementById('appMarks')) document.getElementById('appMarks').textContent = `${app.TwelfthMarks || 0}%`;
+            if (document.getElementById('appPwd')) document.getElementById('appPwd').textContent = app.PWD || 'No';
+
+            // Timeline Updates
+            if (document.getElementById('timeDesc4')) {
+                if (status === 'Allocated') {
+                    document.getElementById('timeDesc4').textContent = `Room ${statusData.allocatedRoom || alloc.RoomNumber} Allocated in ${statusData.allocatedHostel || alloc.HostelName}.`;
+                    document.getElementById('timeDesc4').style.color = 'var(--c-primary)';
+                    if (document.getElementById('timeItem4')) document.getElementById('timeItem4').className = 'timeline-item active';
+                } else if (status === 'Waitlisted') {
+                    document.getElementById('timeDesc4').textContent = `Waitlisted (Position #${statusData.waitlistPosition || 1}).`;
+                    if (document.getElementById('timeItem4')) document.getElementById('timeItem4').className = 'timeline-item active';
+                } else {
+                    document.getElementById('timeDesc4').textContent = 'Pending Allocation Engine Run.';
+                }
+            }
+
+            // Allotment Letter Box
+            if (document.getElementById('letterName')) document.getElementById('letterName').textContent = name;
+            if (document.getElementById('letterEnroll')) document.getElementById('letterEnroll').textContent = `Enrollment No: ${enroll}`;
+            if (document.getElementById('letterHostelVal')) document.getElementById('letterHostelVal').textContent = statusData.allocatedHostel || alloc.HostelName || 'East Delhi Campus Hostel';
+            if (document.getElementById('letterRoomVal')) document.getElementById('letterRoomVal').textContent = statusData.allocatedRoom || alloc.RoomNumber || 'Under Processing';
+            if (document.getElementById('letterDate')) document.getElementById('letterDate').textContent = `Date: ${new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })}`;
+        }
+
+        function downloadApplicationPDF() {
+            const name = document.getElementById('appFullName')?.textContent || 'Student';
+            const enroll = document.getElementById('appEnrollNo')?.textContent || 'Enrollment';
+            const course = document.getElementById('appCourse')?.textContent || '';
+            const year = document.getElementById('appYear')?.textContent || '';
+            const gender = document.getElementById('appGender')?.textContent || '';
+            const category = document.getElementById('appCategory')?.textContent || '';
+            const region = document.getElementById('appRegion')?.textContent || '';
+            const distance = document.getElementById('appDistance')?.textContent || '';
+            const marks = document.getElementById('appMarks')?.textContent || '';
+            const pwd = document.getElementById('appPwd')?.textContent || '';
+
+            const printWindow = window.open('', '_blank');
+            if (!printWindow) return;
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Hostel Application — ${name} (${enroll})</title>
+                    <style>
+                        body { font-family: 'Segoe UI', sans-serif; padding: 40px; color: #1a1a2e; }
+                        .header { text-align: center; border-bottom: 2px solid #2b3467; padding-bottom: 15px; margin-bottom: 30px; }
+                        .header h2 { margin: 0; color: #2b3467; font-size: 20px; }
+                        .header p { margin: 4px 0 0; color: #666; font-size: 13px; }
+                        .title { font-size: 16px; font-weight: bold; text-align: center; margin-bottom: 25px; text-transform: uppercase; letter-spacing: 1px; }
+                        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+                        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+                        th { background-color: #f8fafc; font-weight: 600; color: #475569; width: 40%; }
+                        td { font-weight: 500; color: #0f172a; }
+                        .footer { margin-top: 60px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 15px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <h2>GURU GOBIND SINGH INDRAPRASTHA UNIVERSITY</h2>
+                        <p>East Delhi Campus — Hostel Allocation System</p>
+                    </div>
+                    <div class="title">Submitted Student Application Form</div>
+                    <table>
+                        <tr><th>Full Name</th><td>${name}</td></tr>
+                        <tr><th>Enrollment Number</th><td>${enroll}</td></tr>
+                        <tr><th>Programme & Branch</th><td>${course}</td></tr>
+                        <tr><th>Current Year</th><td>${year}</td></tr>
+                        <tr><th>Gender</th><td>${gender}</td></tr>
+                        <tr><th>Category</th><td>${category}</td></tr>
+                        <tr><th>Region / State</th><td>${region}</td></tr>
+                        <tr><th>Distance from Campus</th><td>${distance}</td></tr>
+                        <tr><th>12th Marks (%)</th><td>${marks}</td></tr>
+                        <tr><th>PWD Status</th><td>${pwd}</td></tr>
+                    </table>
+                    <div class="footer">
+                        Official Document — Generated by GGSIPU Smart Hostel Allocator System on ${new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })}
+                    </div>
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+            setTimeout(() => { printWindow.print(); }, 400);
+        }
+
+        function downloadAllotmentPDF() {
+            const name = document.getElementById('letterName')?.textContent || 'Student';
+            const enroll = document.getElementById('letterEnroll')?.textContent || '';
+            const hostel = document.getElementById('letterHostelVal')?.textContent || 'Hostel Assigned';
+            const room = document.getElementById('letterRoomVal')?.textContent || 'TBD';
+
+            const printWindow = window.open('', '_blank');
+            if (!printWindow) return;
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Hostel Allotment Letter — ${name}</title>
+                    <style>
+                        body { font-family: 'Georgia', serif; padding: 50px; color: #1a1a2e; line-height: 1.6; }
+                        .header { text-align: center; border-bottom: 2px solid #2b3467; padding-bottom: 15px; margin-bottom: 30px; }
+                        .header h2 { margin: 0; color: #2b3467; font-size: 22px; font-family: sans-serif; }
+                        .header p { margin: 4px 0 0; color: #555; font-size: 13px; font-family: sans-serif; }
+                        .letter-title { font-size: 16px; font-weight: bold; text-align: center; margin: 25px 0; text-decoration: underline; letter-spacing: 1px; font-family: sans-serif; }
+                        .meta { display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 14px; }
+                        .details-box { background: #f8fafc; border: 1px solid #cbd5e1; padding: 15px 25px; margin: 20px 0; border-radius: 6px; }
+                        .details-box li { margin-bottom: 8px; font-size: 15px; }
+                        .sign { margin-top: 60px; text-align: right; font-weight: bold; font-family: sans-serif; }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <h2>GURU GOBIND SINGH INDRAPRASTHA UNIVERSITY</h2>
+                        <p>East Delhi Campus, Surajmal Vihar, New Delhi - 110092</p>
+                    </div>
+                    <div class="meta">
+                        <div><strong>Ref:</strong> GGSIPU/EDC/HOSTEL/2026</div>
+                        <div><strong>Date:</strong> ${new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })}</div>
+                    </div>
+                    <div class="letter-title">PROVISIONAL HOSTEL ALLOTMENT LETTER</div>
+                    <p>To,</p>
+                    <p><strong>${name}</strong><br>${enroll}</p>
+                    <p style="margin-top: 15px;"><strong>Subject:</strong> Provisional Hostel Accommodation Allotment</p>
+                    <p style="margin-top: 15px;">Dear Student,</p>
+                    <p>With reference to your application, you are hereby provisionally allotted accommodation in the University Hostel as per the details below:</p>
+                    <div class="details-box">
+                        <ul>
+                            <li><strong>Hostel:</strong> ${hostel}</li>
+                            <li><strong>Room Number:</strong> ${room}</li>
+                        </ul>
+                    </div>
+                    <p>You are advised to report to the Warden Office along with your original documents and fee receipt for completion of check-in formalities.</p>
+                    <div class="sign">
+                        Chief Warden<br>GGSIPU Hostels
+                    </div>
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+            setTimeout(() => { printWindow.print(); }, 400);
+        }
+
+        async function loadNotices() {
+            try {
+                const notices = await HostelAPI.getNotices();
+                const container = document.querySelector('#tab-notices .card');
+                let html = '<h3 class="card-title" style="margin-bottom: 24px;">Hostel Notice Board</h3>';
+                notices.forEach(n => {
+                    html += `<div class="notice-card">
+                        <div class="notice-date">${n.date}</div>
+                        <h4 class="notice-title">${n.title}</h4>
+                        <p class="notice-body">${n.content}</p>
+                    </div>`;
+                });
+                if (container) container.innerHTML = html;
+            } catch(e) {
+                console.error(e);
+            }
+        }
+        
+        // Handle grievance submit
+        const grievanceForm = document.querySelector('#tab-grievance form');
+        if (grievanceForm) {
+            grievanceForm.onsubmit = async (e) => {
+                e.preventDefault();
+                const btn = grievanceForm.querySelector('button');
+                btn.textContent = 'Submitting...';
+                try {
+                    const select = grievanceForm.querySelector('select');
+                    const inputs = grievanceForm.querySelectorAll('input, textarea');
+                    const data = {
+                        category: select.value,
+                        subject: inputs[0].value,
+                        description: inputs[1].value
+                    };
+                    const res = await HostelAPI.fileGrievance(data);
+                    showToast(`Grievance submitted successfully! Ticket ID: ${res.ticketId}`);
+                    grievanceForm.reset();
+                } catch(e) {
+                    showToast('Failed to submit grievance');
+                } finally {
+                    btn.textContent = 'Submit Grievance';
+                }
+            };
+        }
+
+        // Logout Handler
+        logoutBtn.addEventListener('click', () => {
+            dashboardState.classList.add('hidden');
+            loginState.classList.remove('hidden');
+            loginForm.reset();
+            switchTab('overview'); // reset to first tab
+        });
+
+        // Tab Navigation
+        function switchTab(tabId) {
+            tabBtns.forEach(btn => {
+                if(btn.dataset.tab === tabId) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+            
+            tabContents.forEach(content => {
+                if(content.id === 'tab-' + tabId) {
+                    content.classList.add('active');
+                } else {
+                    content.classList.remove('active');
+                }
+            });
+        }
+
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                switchTab(btn.dataset.tab);
+            });
+        });
+
+        // Modal Functions
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        // Close modal on outside click
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', (e) => {
+                if(e.target === overlay) {
+                    overlay.classList.remove('active');
+                }
+            });
+        });
+
+        // Toast Function
+        function showToast(message) {
+            toastEl.textContent = message;
+            toastEl.classList.add('show');
+            
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                toastEl.classList.remove('show');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

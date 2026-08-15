@@ -1,0 +1,1182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard | GGSIPU Hostel Allocator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --c-primary: hsl(228, 52%, 29%);
+            --c-accent: hsl(41, 100%, 47%);
+            --c-dark: hsl(228, 30%, 10%);
+            --c-text: hsl(228, 15%, 20%);
+            --c-muted: hsl(228, 10%, 50%);
+            --c-border: hsl(228, 15%, 88%);
+            --c-surface: hsl(228, 20%, 97%);
+            --font-family: 'Inter', sans-serif;
+            --navbar-height: 68px;
+            --sidebar-width: 240px;
+            --sidebar-collapsed-width: 72px;
+            --transition: all 0.3s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: var(--font-family);
+        }
+
+        body {
+            background-color: var(--c-surface);
+            color: var(--c-text);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Navbar */
+        .navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: var(--navbar-height);
+            background-color: white;
+            border-bottom: 1px solid var(--c-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            z-index: 100;
+        }
+
+        .navbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: var(--c-primary);
+        }
+
+        .navbar-brand img {
+            height: 40px;
+        }
+
+        .navbar-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .badge {
+            background-color: var(--c-primary);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 100px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .btn-outline {
+            border: 1px solid var(--c-border);
+            background: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            color: var(--c-text);
+            transition: var(--transition);
+        }
+        
+        .btn-outline:hover {
+            background: var(--c-surface);
+        }
+
+        .btn-primary {
+            background-color: var(--c-primary);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .btn-primary:hover {
+            background-color: hsl(228, 52%, 24%);
+        }
+
+        .btn-accent {
+            background-color: var(--c-accent);
+            color: var(--c-dark);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: var(--c-dark);
+            color: white;
+            padding-top: calc(var(--navbar-height) + 24px);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            transition: var(--transition);
+            z-index: 90;
+        }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 24px;
+            color: var(--c-muted);
+            text-decoration: none;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            border-left: 3px solid transparent;
+        }
+
+        .menu-item:hover {
+            color: white;
+            background-color: rgba(255,255,255,0.05);
+        }
+
+        .menu-item.active {
+            color: white;
+            background-color: rgba(255,255,255,0.1);
+            border-left-color: var(--c-accent);
+        }
+
+        .menu-item svg {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            padding: calc(var(--navbar-height) + 24px) 24px 24px;
+            overflow-y: auto;
+        }
+
+        .section {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .section.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .page-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--c-dark);
+        }
+
+        /* Dashboard Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            border-top: 4px solid var(--c-primary);
+        }
+
+        .stat-card.accent { border-top-color: var(--c-accent); }
+        .stat-card.muted { border-top-color: var(--c-muted); }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--c-dark);
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            color: var(--c-muted);
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        /* Charts */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .chart-card {
+            background: white;
+            padding: 24px;
+            border-radius: 8px;
+            border: 1px solid var(--c-border);
+        }
+        
+        .chart-title {
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        /* Tables */
+        .table-container {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid var(--c-border);
+            overflow-x: auto;
+            margin-bottom: 24px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        th, td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--c-border);
+        }
+
+        th {
+            font-weight: 600;
+            color: var(--c-muted);
+            background-color: var(--c-surface);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        td {
+            font-size: 0.9rem;
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .status-allocated { background: #e6f4ea; color: #1e8e3e; }
+        .status-waitlisted { background: #fef7e0; color: #f29900; }
+        .status-pending { background: #e8f0fe; color: #1a73e8; }
+        
+        /* Filter Bar */
+        .filter-bar {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+            align-items: center;
+        }
+        
+        .filter-select {
+            padding: 8px 12px;
+            border: 1px solid var(--c-border);
+            border-radius: 4px;
+            outline: none;
+        }
+
+        /* Rooms Grid */
+        .hostel-panels {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+        
+        .hostel-panel {
+            background: white;
+            border: 1px solid var(--c-border);
+            border-radius: 8px;
+            padding: 20px;
+        }
+        
+        .rooms-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 12px;
+            margin-top: 16px;
+        }
+        
+        .room-card {
+            border: 1px solid var(--c-border);
+            border-radius: 6px;
+            padding: 12px;
+            text-align: center;
+            background: white;
+        }
+        
+        .room-card.green { border-top: 3px solid #1e8e3e; }
+        .room-card.amber { border-top: 3px solid #f29900; }
+        .room-card.red { border-top: 3px solid #d93025; }
+        
+        .room-no { font-weight: 600; font-size: 1.1rem; }
+        .room-stats { font-size: 0.75rem; color: var(--c-muted); margin-top: 4px; }
+
+        /* Forms */
+        .form-group {
+            margin-bottom: 16px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--c-border);
+            border-radius: 4px;
+            font-family: inherit;
+        }
+        textarea.form-control {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .notices-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 24px;
+        }
+        .notice-card {
+            background: white;
+            padding: 16px;
+            border: 1px solid var(--c-border);
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .notice-title { font-weight: 600; margin-bottom: 4px;}
+        .notice-date { font-size: 0.8rem; color: var(--c-muted); margin-bottom: 8px; }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal-overlay.active {
+            display: flex;
+        }
+        .modal-content {
+            background: white;
+            padding: 32px;
+            border-radius: 8px;
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+        .modal-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 12px; }
+        .modal-body { color: var(--c-muted); margin-bottom: 24px; font-size: 0.95rem; line-height: 1.5; }
+        .modal-actions { display: flex; gap: 12px; justify-content: center; }
+
+        .loader {
+            border: 4px solid var(--c-border);
+            border-top: 4px solid var(--c-primary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+            display: none;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="navbar-brand">
+            <img src="assets/logo/ipu-logo.png" alt="GGSIPU Logo" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDQwIDQwIj48Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIyMCIgZmlsbD0iIzIyMzQ2OCIvPjx0ZXh0IHg9IjIwIiB5PSIyNSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE2IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+SVBVPC90ZXh0Pjwvc3ZnPg=='">
+            GGSIPU Hostel Allocator
+        </div>
+        <div class="navbar-right">
+            <span class="badge">Admin Panel</span>
+            <button class="btn-outline">Logout</button>
+        </div>
+    </nav>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <a class="menu-item active" data-target="dashboard">
+            <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+            Dashboard
+        </a>
+        <a class="menu-item" data-target="allocations">
+            <svg viewBox="0 0 24 24"><path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z"/></svg>
+            Allocations
+        </a>
+        <a class="menu-item" data-target="students">
+            <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+            Students
+        </a>
+        <a class="menu-item" data-target="rooms">
+            <svg viewBox="0 0 24 24"><path d="M4 4h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 10h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 16h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4z"/></svg>
+            Rooms
+        </a>
+        <a class="menu-item" data-target="grievances">
+            <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/></svg>
+            Grievances
+        </a>
+        <a class="menu-item" data-target="notices">
+            <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+            Notices
+        </a>
+        <a class="menu-item" data-target="settings">
+            <svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
+            Settings
+        </a>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        
+        <!-- Dashboard Section -->
+        <section id="dashboard" class="section active">
+            <div class="page-header">
+                <h1 class="page-title">Dashboard Overview</h1>
+                <button class="btn-accent" onclick="openModal()">Run Allocation Engine</button>
+            </div>
+            
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="statTotalApplied">0</div>
+                    <div class="stat-label">Total Applied</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statAllocatedBoys">0</div>
+                    <div class="stat-label">Allocated (Boys)</div>
+                </div>
+                <div class="stat-card accent">
+                    <div class="stat-value" id="statAllocatedGirls">0</div>
+                    <div class="stat-label">Allocated (Girls)</div>
+                </div>
+                <div class="stat-card muted">
+                    <div class="stat-value" id="statPendingWaitlist">0</div>
+                    <div class="stat-label">Pending / Waitlist</div>
+                </div>
+            </div>
+
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <div class="chart-title">Occupancy vs Capacity</div>
+                    <canvas id="barChart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-title">Allocation by Priority</div>
+                    <canvas id="doughnutChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="chart-card">
+                <div class="chart-title">Recent Allocations</div>
+                <div class="table-container" style="margin-bottom:0; border:none;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Roll No</th>
+                                <th>Name</th>
+                                <th>Gender</th>
+                                <th>Priority</th>
+                                <th>Room</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recent-allocations-tbody">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Allocations Section -->
+        <section id="allocations" class="section">
+            <div class="page-header">
+                <h1 class="page-title">Allocations</h1>
+                <div style="display:flex; gap:12px;">
+                    <button class="btn-outline" onclick="exportCSV(currentData, 'allocations.csv')">Export CSV</button>
+                    <button class="btn-primary" onclick="sendLetters()">Generate Allotment Letters</button>
+                </div>
+            </div>
+            
+            <div class="filter-bar">
+                <select class="filter-select" id="alloc-filter-gender" onchange="applyAllocFilters()">
+                    <option value="">All Genders</option>
+                    <option value="Male">Boys</option>
+                    <option value="Female">Girls</option>
+                </select>
+                <select class="filter-select" id="alloc-filter-status" onchange="applyAllocFilters()">
+                    <option value="">All Statuses</option>
+                    <option value="Active">Allocated / Active</option>
+                    <option value="Waitlisted">Waitlisted</option>
+                </select>
+                <select class="filter-select" id="alloc-filter-priority" onchange="applyAllocFilters()">
+                    <option value="">All Priorities</option>
+                    <option value="1">Priority I (PWD)</option>
+                    <option value="2">Priority II (Outside Delhi)</option>
+                    <option value="3">Priority III (Delhi Transferred)</option>
+                    <option value="4">Priority IV (Delhi Distance)</option>
+                    <option value="5">Priority V (Waitlist)</option>
+                </select>
+            </div>
+            
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Roll No</th>
+                            <th>Name</th>
+                            <th>Gender</th>
+                            <th>Category</th>
+                            <th>Priority</th>
+                            <th>Room</th>
+                            <th>Hostel</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="allocations-tbody">
+                        <!-- Populated via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Students Section -->
+        <section id="students" class="section">
+            <div class="page-header">
+                <h1 class="page-title">Students Directory</h1>
+                <input type="text" id="students-search-input" class="filter-select" placeholder="Search by name or roll no..." style="width: 300px;" oninput="applyStudentSearch()">
+            </div>
+            
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Roll No</th>
+                            <th>Name</th>
+                            <th>Gender</th>
+                            <th>Branch</th>
+                            <th>Category</th>
+                            <th>12th %</th>
+                            <th>Distance</th>
+                            <th>PWD</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="students-tbody">
+                        <!-- Populated via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Rooms Section -->
+        <section id="rooms" class="section">
+            <div class="page-header">
+                <h1 class="page-title">Room Management</h1>
+            </div>
+            
+            <div class="hostel-panels">
+                <div class="hostel-panel">
+                    <h2 class="chart-title">Boys Hostel (BH-1)</h2>
+                    <div class="rooms-grid" id="bh-rooms">
+                        <!-- Populated via JS -->
+                    </div>
+                </div>
+                <div class="hostel-panel">
+                    <h2 class="chart-title">Girls Hostel (GH-1)</h2>
+                    <div class="rooms-grid" id="gh-rooms">
+                        <!-- Populated via JS -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Grievances Section -->
+        <section id="grievances" class="section">
+            <div class="page-header">
+                <h1 class="page-title">Grievances & Support</h1>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Ticket ID</th>
+                            <th>Student</th>
+                            <th>Date</th>
+                            <th>Issue</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="grievances-tbody">
+                        <!-- Populated via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Notices Section -->
+        <section id="notices" class="section">
+            <div class="page-header">
+                <h1 class="page-title">Notices & Announcements</h1>
+            </div>
+            
+            <div style="display:grid; grid-template-columns: 1fr 2fr; gap: 32px;">
+                <div class="chart-card">
+                    <h2 class="chart-title">Post New Notice</h2>
+                    <div class="form-group">
+                        <label>Title</label>
+                        <input type="text" class="form-control" placeholder="Notice title">
+                    </div>
+                    <div class="form-group">
+                        <label>Body</label>
+                        <textarea class="form-control" placeholder="Notice content..."></textarea>
+                    </div>
+                    <button class="btn-primary" onclick="postNotice()">Post Notice</button>
+                </div>
+                
+                <div>
+                    <h2 class="chart-title">Recent Notices</h2>
+                    <div class="notices-list">
+                        <div class="notice-card">
+                            <div>
+                                <div class="notice-title">Hostel Fee Payment Deadline</div>
+                                <div class="notice-date">Aug 12, 2026</div>
+                                <div style="font-size: 0.9rem; color: var(--c-muted);">The last date to pay the hostel fee for the current semester is Aug 25.</div>
+                            </div>
+                            <button class="btn-outline" style="padding: 4px 8px; font-size: 0.8rem; color: #d93025; border-color: #d93025;">Delete</button>
+                        </div>
+                        <div class="notice-card">
+                            <div>
+                                <div class="notice-title">Mess Committee Meeting</div>
+                                <div class="notice-date">Aug 10, 2026</div>
+                                <div style="font-size: 0.9rem; color: var(--c-muted);">A meeting for all mess committee members will be held in the common room.</div>
+                            </div>
+                            <button class="btn-outline" style="padding: 4px 8px; font-size: 0.8rem; color: #d93025; border-color: #d93025;">Delete</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Settings Section -->
+        <section id="settings" class="section">
+            <div class="page-header">
+                <h1 class="page-title">System Settings</h1>
+            </div>
+            <div class="chart-card">
+                <p style="color: var(--c-muted);">Configuration options for the allocation algorithm, timelines, and fee structures will be available here.</p>
+            </div>
+        </section>
+        
+    </main>
+
+    <!-- Run Allocation Modal -->
+    <div class="modal-overlay" id="allocationModal">
+        <div class="modal-content">
+            <div id="modal-step-1">
+                <h2 class="modal-title">Run Allocation Engine</h2>
+                <p class="modal-body">Are you sure you want to run the allocation engine? This will process all pending applications based on the defined priority rules.</p>
+                <div class="modal-actions">
+                    <button class="btn-outline" onclick="closeModal()">Cancel</button>
+                    <button class="btn-accent" onclick="runEngine()">Confirm & Run</button>
+                </div>
+            </div>
+            
+            <div id="modal-step-2" style="display:none;">
+                <div class="loader"></div>
+                <h2 class="modal-title">Processing Allocations...</h2>
+                <p class="modal-body">Please wait while the algorithm maps students to available rooms.</p>
+            </div>
+            
+            <div id="modal-step-3" style="display:none;">
+                <div style="color: #1e8e3e; margin-bottom: 16px;">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                </div>
+                <h2 class="modal-title">Allocation Complete!</h2>
+                <p class="modal-body" id="modal-result-msg">Successfully processed all applications. Results are now available in the Allocations tab.</p>
+                <button class="btn-primary" onclick="closeModal(); initDashboard();">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="api.js"></script>
+    <script>
+        // SPA Navigation
+        const menuItems = document.querySelectorAll('.menu-item');
+        const sections = document.querySelectorAll('.section');
+
+        menuItems.forEach(item => {
+            item.addEventListener('click', () => {
+                const target = item.getAttribute('data-target');
+                
+                // Update active state in sidebar
+                menuItems.forEach(mi => mi.classList.remove('active'));
+                item.classList.add('active');
+                
+                // Show target section
+                sections.forEach(sec => {
+                    if(sec.id === target) {
+                        sec.classList.add('active');
+                    } else {
+                        sec.classList.remove('active');
+                    }
+                });
+
+                // Fetch data for the section
+                loadSectionData(target);
+            });
+        });
+
+        let currentData = [];
+
+        async function loadSectionData(target) {
+            try {
+                if (target === 'dashboard') {
+                    await initDashboard();
+                } else if (target === 'students') {
+                    document.getElementById('students-tbody').innerHTML = '<tr><td colspan="10" style="text-align:center"><div class="loader"></div></td></tr>';
+                    const data = await HostelAPI.getStudents();
+                    currentData = data;
+                    renderStudents(data);
+                } else if (target === 'rooms') {
+                    document.getElementById('bh-rooms').innerHTML = '<div class="loader"></div>';
+                    document.getElementById('gh-rooms').innerHTML = '<div class="loader"></div>';
+                    const data = await HostelAPI.getRooms();
+                    currentData = data;
+                    renderRooms(data);
+                } else if (target === 'allocations') {
+                    document.getElementById('allocations-tbody').innerHTML = '<tr><td colspan="9" style="text-align:center"><div class="loader"></div></td></tr>';
+                    const data = await HostelAPI.getAllocations();
+                    currentData = data;
+                    renderAllocations(data);
+                } else if (target === 'grievances') {
+                    document.getElementById('grievances-tbody').innerHTML = '<tr><td colspan="6" style="text-align:center"><div class="loader"></div></td></tr>';
+                    const data = await HostelAPI.getGrievances();
+                    currentData = data;
+                    renderGrievances(data);
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            loadSectionData('dashboard');
+        });
+
+        // Modal Logic
+        const modal = document.getElementById('allocationModal');
+        const s1 = document.getElementById('modal-step-1');
+        const s2 = document.getElementById('modal-step-2');
+        const s3 = document.getElementById('modal-step-3');
+
+        function openModal() {
+            s1.style.display = 'block';
+            s2.style.display = 'none';
+            s3.style.display = 'none';
+            modal.classList.add('active');
+        }
+
+        function closeModal() {
+            modal.classList.remove('active');
+        }
+
+        async function runEngine() {
+            s1.style.display = 'none';
+            s2.style.display = 'block';
+            
+            try {
+                const res = await HostelAPI.runAllocation();
+                s2.style.display = 'none';
+                s3.style.display = 'block';
+                
+                const msgEl = document.getElementById('modal-result-msg');
+                if (msgEl) {
+                    if (res && (res.allocated !== undefined || res.waitlisted !== undefined)) {
+                        const total = (res.allocated || 0) + (res.waitlisted || 0);
+                        msgEl.textContent = `Successfully processed ${total} application(s) (${res.allocated || 0} allocated, ${res.waitlisted || 0} waitlisted). Results are now available in the Allocations tab.`;
+                    } else if (res && res.message) {
+                        msgEl.textContent = res.message + '. Results are now available in the Allocations tab.';
+                    } else {
+                        msgEl.textContent = 'Successfully processed applications. Results are now available in the Allocations tab.';
+                    }
+                }
+            } catch(e) {
+                s2.style.display = 'none';
+                s1.style.display = 'block';
+                showAdminToast('Failed to run allocation engine', 'error');
+            }
+        }
+
+        // Charts Init
+        let barChart, doughnutChart;
+        
+        async function initDashboard() {
+            try {
+                const data = await HostelAPI.getDashboard();
+                if (!data) return;
+                
+                // Calculate breakdown metrics
+                const totalApplied = data.totalApplied || 0;
+                const allocatedBoys = data.allocatedBoys || 0;
+                const allocatedGirls = data.allocatedGirls || 0;
+                const waitlisted = data.waitlisted || 0;
+                const pending = data.pending || 0;
+
+                // Update Stat Cards dynamically
+                if (document.getElementById('statTotalApplied')) document.getElementById('statTotalApplied').textContent = totalApplied;
+                if (document.getElementById('statAllocatedBoys')) document.getElementById('statAllocatedBoys').textContent = allocatedBoys;
+                if (document.getElementById('statAllocatedGirls')) document.getElementById('statAllocatedGirls').textContent = allocatedGirls;
+                if (document.getElementById('statPendingWaitlist')) document.getElementById('statPendingWaitlist').textContent = waitlisted + pending;
+
+                const boyStats = data.boyStats || { total: 264, occupied: 0, vacant: 264 };
+                const girlStats = data.girlStats || { total: 176, occupied: 0, vacant: 176 };
+
+                // Render Bar Chart
+                if (barChart) barChart.destroy();
+                const ctxBar = document.getElementById('barChart')?.getContext('2d');
+                if (ctxBar) {
+                    barChart = new Chart(ctxBar, {
+                        type: 'bar',
+                        data: {
+                            labels: ['Boys Hostel (264 Seats)', 'Girls Hostel (176 Seats)'],
+                            datasets: [
+                                { label: 'Capacity', data: [boyStats.total || boyStats.capacity || 264, girlStats.total || girlStats.capacity || 176], backgroundColor: '#cbd5e1' },
+                                { label: 'Occupied', data: [boyStats.occupied || 0, girlStats.occupied || 0], backgroundColor: 'hsl(228, 52%, 29%)' },
+                                { label: 'Vacant', data: [boyStats.vacant || 264, girlStats.vacant || 176], backgroundColor: 'hsl(41, 100%, 47%)' }
+                            ]
+                        },
+                        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+                    });
+                }
+
+                // Render Doughnut Chart
+                if (doughnutChart) doughnutChart.destroy();
+                const ctxDoughnut = document.getElementById('doughnutChart')?.getContext('2d');
+                if (ctxDoughnut) {
+                    doughnutChart = new Chart(ctxDoughnut, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['Priority I (PWD)', 'Priority II (Outside Delhi)', 'Priority III (Delhi Transferred)', 'Priority IV (Delhi Distance)', 'Priority V (Waitlist)'],
+                            datasets: [{
+                                data: data.priorityBreakdown || [0, 0, 0, 0, 0],
+                                backgroundColor: ['#d97706', '#2563eb', '#7c3aed', '#059669', '#64748b']
+                            }]
+                        },
+                        options: { responsive: true, plugins: { legend: { position: 'right' } } }
+                    });
+                }
+
+                // Render Recent Allocations Table
+                const recentBody = document.getElementById('recent-allocations-tbody');
+                if (recentBody) {
+                    recentBody.innerHTML = '';
+                    if (data.recentAllocations && data.recentAllocations.length > 0) {
+                        data.recentAllocations.forEach(a => {
+                            recentBody.innerHTML += `<tr>
+                                <td>${a.EnrollmentNo || a.enrollment || '-'}</td>
+                                <td>${a.StudentName || a.name || '-'}</td>
+                                <td>${a.Gender || '-'}</td>
+                                <td>${a.RoomNumber || a.room || '-'}</td>
+                            </tr>`;
+                        });
+                    } else {
+                        recentBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: #888;">No recent allocations yet. Click "Run Allocation Engine" to process pending applications.</td></tr>';
+                    }
+                }
+            } catch (err) {
+                console.error('initDashboard Error:', err);
+            }
+        }
+
+        function applyAllocFilters() {
+            if (!currentData || !Array.isArray(currentData)) return;
+            
+            const genderFilter = (document.getElementById('alloc-filter-gender')?.value || '').toLowerCase();
+            const statusFilter = (document.getElementById('alloc-filter-status')?.value || '').toLowerCase();
+            const priorityFilter = document.getElementById('alloc-filter-priority')?.value || '';
+
+            const filtered = currentData.filter(a => {
+                const g = String(getStudentValue(a, 'Gender')).toLowerCase();
+                const s = String(getStudentValue(a, 'Status')).toLowerCase();
+                const p = String(getStudentValue(a, 'Priority'));
+
+                if (genderFilter && !g.includes(genderFilter)) return false;
+                if (statusFilter && !s.includes(statusFilter)) return false;
+                if (priorityFilter && p !== priorityFilter) return false;
+                return true;
+            });
+
+            renderAllocations(filtered);
+        }
+
+        function applyStudentSearch() {
+            if (!currentData || !Array.isArray(currentData)) return;
+            const query = (document.getElementById('students-search-input')?.value || '').toLowerCase().trim();
+            if (!query) {
+                renderStudents(currentData);
+                return;
+            }
+
+            const filtered = currentData.filter(s => {
+                const name = String(getStudentValue(s, 'Name')).toLowerCase();
+                const enroll = String(getStudentValue(s, 'EnrollmentNo')).toLowerCase();
+                return name.includes(query) || enroll.includes(query);
+            });
+
+            renderStudents(filtered);
+        }
+
+        function getStudentValue(obj, keyName) {
+            if (!obj) return '';
+            const targetKey = keyName.toLowerCase().replace(/[^a-z0-9]/g, '');
+            for (let k in obj) {
+                const cleanK = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+                if (cleanK === targetKey) {
+                    return obj[k];
+                }
+            }
+            return '';
+        }
+
+        function renderAllocations(allocations) {
+            const allocBody = document.getElementById('allocations-tbody');
+            if (!allocBody) return;
+            allocBody.innerHTML = '';
+            
+            if (!allocations || allocations.length === 0) {
+                allocBody.innerHTML = '<tr><td colspan="9" style="text-align:center; color: #888; padding: 24px;">No allocations generated yet. Click "Run Allocation Engine" to allocate pending applications.</td></tr>';
+                return;
+            }
+            
+            allocations.forEach(a => {
+                const enroll = getStudentValue(a, 'EnrollmentNo') || a.enrollmentNo || '-';
+                const name = getStudentValue(a, 'StudentName') || a.name || '-';
+                const gender = getStudentValue(a, 'Gender') || a.gender || '-';
+                const category = getStudentValue(a, 'Category') || a.category || '-';
+                const priority = getStudentValue(a, 'Priority') || a.priority || '-';
+                const room = getStudentValue(a, 'RoomNumber') || a.roomNumber || '-';
+                const hostel = getStudentValue(a, 'HostelName') || a.hostelName || '-';
+                const status = getStudentValue(a, 'Status') || a.status || 'Active';
+                
+                const statusStr = String(status).toLowerCase();
+                const badgeClass = (statusStr === 'confirmed' || statusStr === 'active' || statusStr === 'allocated') ? 'status-allocated' : (statusStr === 'waitlisted' ? 'status-waitlisted' : 'status-pending');
+                
+                allocBody.innerHTML += `<tr>
+                    <td>${enroll}</td>
+                    <td>${name}</td>
+                    <td>${gender}</td>
+                    <td>${category}</td>
+                    <td>${priority ? 'Priority ' + priority : '-'}</td>
+                    <td>${room}</td>
+                    <td>${hostel}</td>
+                    <td><span class="status-badge ${badgeClass}">${status}</span></td>
+                    <td><button class="btn-outline" style="padding:4px 8px; font-size:0.8rem;" onclick="showAdminToast('Room ${room} (${hostel})', 'info')">Details</button></td>
+                </tr>`;
+            });
+        }
+
+        function renderStudents(students) {
+            const stuBody = document.getElementById('students-tbody');
+            if (!stuBody) return;
+            stuBody.innerHTML = '';
+            
+            if (!students || students.length === 0) {
+                stuBody.innerHTML = '<tr><td colspan="9" style="text-align:center; color: #888; padding: 24px;">No registered students found.</td></tr>';
+                return;
+            }
+            
+            students.forEach(s => {
+                const enroll = getStudentValue(s, 'EnrollmentNo') || s.enrollmentNo || '-';
+                const name = getStudentValue(s, 'Name') || s.name || '-';
+                const gender = getStudentValue(s, 'Gender') || s.gender || '-';
+                const prog = getStudentValue(s, 'Programme') || s.programme || s.course || '-';
+                const branch = getStudentValue(s, 'Branch') || s.branch || '';
+                const marks = getStudentValue(s, 'TwelfthMarks') || s.marks12 || s.score || '0';
+                const category = getStudentValue(s, 'Category') || s.category || '-';
+                const dist = getStudentValue(s, 'DistanceKm') || s.distance || '0';
+                const status = getStudentValue(s, 'Status') || s.status || 'Pending';
+                
+                const statusStr = String(status).toLowerCase();
+                const badgeClass = statusStr === 'allocated' ? 'status-allocated' : (statusStr === 'waitlisted' ? 'status-waitlisted' : 'status-pending');
+                
+                stuBody.innerHTML += `<tr>
+                    <td>${enroll}</td>
+                    <td>${name}</td>
+                    <td>${gender}</td>
+                    <td>${prog}${branch ? ' (' + branch + ')' : ''}</td>
+                    <td>${category}</td>
+                    <td>${marks}%</td>
+                    <td>${dist} km</td>
+                    <td><span class="status-badge ${badgeClass}">${status}</span></td>
+                    <td>
+                        <button class="btn-outline" style="padding:4px 8px; font-size:0.8rem;" onclick="showAdminToast('${name} (${enroll})', 'info')">View</button>
+                    </td>
+                </tr>`;
+            });
+        }
+
+        function renderRooms(rooms) {
+            const bhRooms = document.getElementById('bh-rooms');
+            const ghRooms = document.getElementById('gh-rooms');
+            bhRooms.innerHTML = '';
+            ghRooms.innerHTML = '';
+            
+            rooms.forEach(r => {
+                let color = r.occupancy === 0 ? 'green' : (r.occupancy === r.capacity ? 'red' : 'amber');
+                const html = `<div class="room-card ${color}">
+                    <div class="room-no">${r.number}</div>
+                    <div class="room-stats">${r.occupancy}/${r.capacity} Occ</div>
+                </div>`;
+                if (r.hostel.includes('Boys')) bhRooms.innerHTML += html;
+                else ghRooms.innerHTML += html;
+            });
+        }
+
+        function renderGrievances(grievances) {
+            const gBody = document.getElementById('grievances-tbody');
+            gBody.innerHTML = '';
+            grievances.forEach(g => {
+                const b = g.status === 'Resolved' ? 'status-allocated' : (g.status === 'Waitlisted' ? 'status-waitlisted' : 'status-pending');
+                gBody.innerHTML += `<tr>
+                    <td>${g.id}</td><td>${g.enrollmentNo}</td><td>${g.date}</td><td>${g.subject}</td>
+                    <td><span class="status-badge ${b}">${g.status}</span></td>
+                    <td>
+                        <button class="btn-outline" style="padding:4px 8px; font-size:0.8rem;">View</button>
+                        ${g.status !== 'Resolved' ? `<button class="btn-primary" style="padding:4px 8px; font-size:0.8rem;" onclick="HostelAPI.resolveGrievance({id: '${g.id}'}).then(() => loadSectionData('grievances'))">Resolve</button>` : ''}
+                    </td>
+                </tr>`;
+            });
+        }
+
+
+    // ── Admin Toast Notification ─────────────────────────────
+    function showAdminToast(message, type = 'info') {
+        let toast = document.getElementById('adminToast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'adminToast';
+            toast.style.cssText = `
+                position: fixed; bottom: 1.5rem; right: 1.5rem;
+                background: hsl(228,30%,10%); color: #fff;
+                padding: .85rem 1.25rem; border-radius: 10px;
+                font-size: .875rem; font-weight: 500;
+                box-shadow: 0 8px 24px rgba(0,0,0,.25); z-index: 9999;
+                opacity: 0; transform: translateY(12px);
+                transition: all .3s cubic-bezier(.22,1,.36,1);
+                max-width: 340px; line-height: 1.4;
+            `;
+            document.body.appendChild(toast);
+        }
+        const colors = { success: 'hsl(142,70%,40%)', error: 'hsl(0,80%,55%)', info: 'hsl(41,100%,47%)' };
+        toast.style.borderLeft = `4px solid ${colors[type] || colors.info}`;
+        toast.textContent = message;
+        requestAnimationFrame(() => {
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateY(0)';
+        });
+        clearTimeout(toast._t);
+        toast._t = setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(12px)';
+        }, 4000);
+    }
+
+    // ── Post Notice ──────────────────────────────────────────
+    async function postNotice() {
+        const title = document.getElementById('noticeTitle') || document.querySelector('input[placeholder="Notice title"]');
+        const body  = document.getElementById('noticeBody') || document.querySelector('textarea[placeholder="Notice content..."]');
+        if (!title || !body || !title.value.trim()) {
+            showAdminToast('Please enter a notice title.', 'error'); return;
+        }
+        
+        try {
+            await HostelAPI.postNotice({ title: title.value, content: body.value });
+            showAdminToast('✅ Notice posted successfully!', 'success');
+            if (title) title.value = '';
+            if (body)  body.value  = '';
+        } catch(e) {
+            showAdminToast('Failed to post notice.', 'error');
+        }
+    }
+
+    // ── Logout ───────────────────────────────────────────────
+    function logout() {
+        window.location.href = 'index.html';
+    }
+
+    // ── CSV Export ───────────────────────────────────────────
+    function exportCSV(data, filename) {
+        HostelAPI.exportCSV(currentData, filename || 'export.csv');
+        showAdminToast(`✅ Export initiated!`, 'success');
+    }
+    
+    // ── Send Letters ──────────────────────────────────────────
+    async function sendLetters() {
+        try {
+            showAdminToast('Sending allotment letters via Email...', 'info');
+            const res = await HostelAPI.sendLetters();
+            if (res && res.error) {
+                showAdminToast(res.error, 'error');
+            } else if (res && res.message) {
+                showAdminToast('✅ ' + res.message, 'success');
+            } else {
+                showAdminToast('✅ Allotment letters process completed!', 'success');
+            }
+            loadSectionData('allocations');
+        } catch(e) {
+            console.error(e);
+            showAdminToast('Failed to send letters. Make sure you authorized Gmail in Apps Script.', 'error');
+        }
+    }
+
+    </script>
+</body>
+</html>

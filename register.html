@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Registration - GGSIPU Hostel Allocator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --c-primary: hsl(228, 52%, 29%);
+            --c-accent: hsl(41, 100%, 47%);
+            --c-dark: hsl(228, 30%, 10%);
+            --c-text: hsl(228, 15%, 20%);
+            --c-muted: hsl(228, 10%, 50%);
+            --c-border: hsl(228, 15%, 88%);
+            --c-surface: hsl(228, 20%, 97%);
+            --c-error: #ef4444;
+            --font-main: 'Inter', sans-serif;
+            --nav-height: 68px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-main);
+            color: var(--c-text);
+            background-color: var(--c-surface);
+            line-height: 1.6;
+        }
+
+        /* Navbar */
+        .navbar {
+            height: var(--nav-height);
+            background: #fff;
+            border-bottom: 1px solid var(--c-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            text-decoration: none;
+            color: var(--c-primary);
+            font-weight: 700;
+            font-size: 1.25rem;
+        }
+
+        .nav-brand img {
+            height: 40px;
+        }
+
+        .nav-link {
+            text-decoration: none;
+            color: var(--c-primary);
+            font-weight: 500;
+        }
+
+        .nav-link:hover {
+            color: var(--c-accent);
+        }
+
+        /* Main Container */
+        .container {
+            max-width: 800px;
+            margin: 3rem auto;
+            padding: 0 1rem;
+        }
+
+        .form-card {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            padding: 2.5rem;
+        }
+
+        .form-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .form-header h1 {
+            color: var(--c-dark);
+            margin-bottom: 0.5rem;
+        }
+
+        .form-header p {
+            color: var(--c-muted);
+        }
+
+        /* Stepper */
+        .stepper {
+            display: flex;
+            justify-content: space-between;
+            position: relative;
+            margin-bottom: 3rem;
+        }
+
+        .stepper::before {
+            content: '';
+            position: absolute;
+            top: 15px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--c-border);
+            z-index: 1;
+        }
+
+        .step {
+            position: relative;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+            width: 25%;
+        }
+
+        .step-circle {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #fff;
+            border: 2px solid var(--c-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            color: var(--c-muted);
+            transition: all 0.3s ease;
+        }
+
+        .step-label {
+            font-size: 0.875rem;
+            color: var(--c-muted);
+            font-weight: 500;
+            text-align: center;
+        }
+
+        .step.active .step-circle {
+            border-color: var(--c-primary);
+            background: var(--c-primary);
+            color: #fff;
+        }
+
+        .step.active .step-label {
+            color: var(--c-primary);
+        }
+
+        .step.completed .step-circle {
+            border-color: var(--c-primary);
+            background: var(--c-primary);
+            color: #fff;
+        }
+
+        /* Form Steps */
+        .form-step {
+            display: none;
+        }
+
+        .form-step.active {
+            display: block;
+            animation: fadeIn 0.4s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        label {
+            font-weight: 500;
+            color: var(--c-dark);
+            font-size: 0.9rem;
+        }
+
+        label.required::after {
+            content: ' *';
+            color: var(--c-error);
+        }
+
+        input[type="text"],
+        input[type="email"],
+        input[type="tel"],
+        input[type="date"],
+        input[type="number"],
+        select,
+        input[type="file"] {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--c-border);
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 1rem;
+            color: var(--c-text);
+            transition: border-color 0.2s;
+        }
+
+        input:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--c-primary);
+            box-shadow: 0 0 0 3px rgba(35, 53, 113, 0.1);
+        }
+
+        .radio-group {
+            display: flex;
+            gap: 1.5rem;
+            margin-top: 0.25rem;
+        }
+
+        .radio-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 400;
+            cursor: pointer;
+        }
+
+        .error-message {
+            color: var(--c-error);
+            font-size: 0.8rem;
+            display: none;
+            margin-top: -0.25rem;
+        }
+
+        .form-group.error input,
+        .form-group.error select {
+            border-color: var(--c-error);
+        }
+        
+        .form-group.error .error-message {
+            display: block;
+        }
+
+        /* Review Step */
+        .review-section {
+            margin-bottom: 1.5rem;
+        }
+        .review-section h3 {
+            color: var(--c-primary);
+            border-bottom: 1px solid var(--c-border);
+            padding-bottom: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .review-row {
+            display: flex;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #f1f1f1;
+        }
+        .review-label {
+            width: 40%;
+            font-weight: 600;
+            color: var(--c-muted);
+            font-size: 0.9rem;
+        }
+        .review-value {
+            width: 60%;
+            color: var(--c-text);
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+        
+        .declaration {
+            margin-top: 2rem;
+            padding: 1rem;
+            background: #f8fafc;
+            border-left: 4px solid var(--c-primary);
+            border-radius: 4px;
+        }
+        .declaration label {
+            font-weight: 400;
+            display: flex;
+            gap: 0.75rem;
+            align-items: flex-start;
+            cursor: pointer;
+        }
+
+        /* Buttons */
+        .btn-group {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 2.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--c-border);
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            font-family: inherit;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--c-primary);
+            color: var(--c-primary);
+        }
+
+        .btn-outline:hover {
+            background: rgba(35, 53, 113, 0.05);
+        }
+
+        .btn-primary {
+            background: var(--c-primary);
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background: var(--c-dark);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+        }
+        
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: #fff;
+            padding: 2.5rem;
+            border-radius: 12px;
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+            transform: scale(0.9);
+            transition: transform 0.3s;
+        }
+        
+        .modal-overlay.active .modal {
+            transform: scale(1);
+        }
+
+        .modal-icon {
+            width: 64px;
+            height: 64px;
+            background: #10b981;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            margin: 0 auto 1.5rem;
+        }
+        
+        .modal h2 {
+            color: var(--c-dark);
+            margin-bottom: 1rem;
+        }
+        
+        .app-id-box {
+            background: var(--c-surface);
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--c-primary);
+            letter-spacing: 2px;
+            margin: 1.5rem 0;
+            border: 1px dashed var(--c-border);
+        }
+
+        @media (max-width: 768px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+            .step-label {
+                font-size: 0.75rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navbar -->
+    <nav class="navbar">
+        <a href="#" class="nav-brand">
+            <img src="assets/logo/ipu-logo.png" alt="GGSIPU Logo" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDEwMCAxMDAiPjxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjQ1IiBmaWxsPSIjMjMzNTcxIi8+PHRleHQgeD0iNTAiIHk9IjYwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMzAiIGZpbGw9IiNmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiPklQVTwvdGV4dD48L3N2Zz4='">
+            GGSIPU Hostel Allocator
+        </a>
+        <a href="student.html" class="nav-link">Already registered? Login</a>
+    </nav>
+
+    <!-- Main Container -->
+    <main class="container">
+        <div class="form-card">
+            
+            <div class="form-header">
+                <h1>Hostel Registration</h1>
+                <p>Complete your profile to apply for hostel accommodation</p>
+            </div>
+
+            <!-- Stepper -->
+            <div class="stepper" id="stepper">
+                <div class="step active" data-step="1">
+                    <div class="step-circle">1</div>
+                    <div class="step-label">Personal</div>
+                </div>
+                <div class="step" data-step="2">
+                    <div class="step-circle">2</div>
+                    <div class="step-label">Academic</div>
+                </div>
+                <div class="step" data-step="3">
+                    <div class="step-circle">3</div>
+                    <div class="step-label">Category</div>
+                </div>
+                <div class="step" data-step="4">
+                    <div class="step-circle">4</div>
+                    <div class="step-label">Review</div>
+                </div>
+            </div>
+
+            <form id="registrationForm" onsubmit="return false;">
+                
+                <!-- Step 1: Personal Details -->
+                <div class="form-step active" id="step1">
+                    <div class="form-grid">
+                        <div class="form-group full-width">
+                            <label for="fullName" class="required">Full Name</label>
+                            <input type="text" id="fullName" name="fullName" required>
+                            <div class="error-message">Name is required</div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="dob" class="required">Date of Birth</label>
+                            <input type="date" id="dob" name="dob" required>
+                            <div class="error-message">Valid DOB is required</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="required">Gender</label>
+                            <div class="radio-group">
+                                <label class="radio-label"><input type="radio" name="gender" value="Male" required> Male</label>
+                                <label class="radio-label"><input type="radio" name="gender" value="Female"> Female</label>
+                            </div>
+                            <div class="error-message">Please select gender</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="mobile" class="required">Mobile Number</label>
+                            <input type="tel" id="mobile" name="mobile" pattern="[0-9]{10}" placeholder="10-digit number" required>
+                            <div class="error-message">Enter valid 10-digit mobile number</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="email" class="required">Email Address</label>
+                            <input type="email" id="email" name="email" required>
+                            <div class="error-message">Enter a valid email</div>
+                        </div>
+
+                        <div class="form-group full-width">
+                            <label for="aadhaar" class="required">Aadhaar Number</label>
+                            <input type="text" id="aadhaar" name="aadhaar" pattern="[0-9]{12}" placeholder="12-digit Aadhaar number" required>
+                            <div class="error-message">Enter valid 12-digit Aadhaar</div>
+                        </div>
+
+                        <div class="form-group full-width">
+                            <label for="photo">Profile Photo</label>
+                            <input type="file" id="photo" name="photo" accept="image/*">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Academic Details -->
+                <div class="form-step" id="step2">
+                    <div class="form-grid">
+                        <div class="form-group full-width">
+                            <label for="rollNo" class="required">Enrollment / Roll Number</label>
+                            <input type="text" id="rollNo" name="rollNo" required>
+                            <div class="error-message">Roll Number is required</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="programme" class="required">Programme</label>
+                            <select id="programme" name="programme" required>
+                                <option value="">Select Programme</option>
+                                <option value="B.Tech">B.Tech</option>
+                                <option value="BBA">BBA</option>
+                                <option value="BCA">BCA</option>
+                                <option value="MBA">MBA</option>
+                                <option value="MCA">MCA</option>
+                                <option value="M.Tech">M.Tech</option>
+                            </select>
+                            <div class="error-message">Select a programme</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="branch" class="required">Branch</label>
+                            <input type="text" id="branch" name="branch" required>
+                            <div class="error-message">Branch is required</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="year" class="required">Year of Study</label>
+                            <select id="year" name="year" required>
+                                <option value="">Select Year</option>
+                                <option value="1st">1st Year</option>
+                                <option value="2nd">2nd Year</option>
+                                <option value="3rd">3rd Year</option>
+                                <option value="4th">4th Year</option>
+                            </select>
+                            <div class="error-message">Select year of study</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="marks12" class="required">12th Marks Percentage</label>
+                            <input type="number" id="marks12" name="marks12" min="0" max="100" step="0.01" required>
+                            <div class="error-message">Enter valid percentage (0-100)</div>
+                        </div>
+
+                        <div class="form-group full-width">
+                            <label for="marksheet">12th Marksheet</label>
+                            <input type="file" id="marksheet" name="marksheet" accept="application/pdf,image/*">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 3: Category & Eligibility -->
+                <div class="form-step" id="step3">
+                    <div class="form-grid">
+                        <div class="form-group full-width">
+                            <label class="required">Domicile Category</label>
+                            <div class="radio-group">
+                                <label class="radio-label"><input type="radio" name="domicile" value="Delhi" required onchange="toggleCategoryFields()"> Delhi</label>
+                                <label class="radio-label"><input type="radio" name="domicile" value="Outside Delhi" onchange="toggleCategoryFields()"> Outside Delhi</label>
+                            </div>
+                            <div class="error-message">Select domicile category</div>
+                        </div>
+
+                        <div class="form-group full-width hidden" id="stateGroup">
+                            <label for="state" class="required">State</label>
+                            <select id="state" name="state">
+                                <option value="">Select State</option>
+                                <option value="UP">Uttar Pradesh</option>
+                                <option value="Haryana">Haryana</option>
+                                <option value="Rajasthan">Rajasthan</option>
+                                <option value="Punjab">Punjab</option>
+                                <option value="Other">Other</option>
+                            </select>
+                            <div class="error-message">Select state</div>
+                        </div>
+
+                        <div class="form-group full-width hidden" id="govtEmployeeGroup">
+                            <label class="required">Are your parents Govt./PSU employees posted outside Delhi?</label>
+                            <div class="radio-group">
+                                <label class="radio-label"><input type="radio" name="govtEmp" value="Yes"> Yes</label>
+                                <label class="radio-label"><input type="radio" name="govtEmp" value="No"> No</label>
+                            </div>
+                            <div class="error-message">Please select an option</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="distance" class="required">Distance from East Delhi Campus (in KM)</label>
+                            <input type="number" id="distance" name="distance" min="0" required>
+                            <div class="error-message">Enter distance in KM</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="required">Are you a Person with Disability (PWD)?</label>
+                            <div class="radio-group">
+                                <label class="radio-label"><input type="radio" name="pwd" value="Yes" required onchange="document.getElementById('pwdDocGroup').classList.remove('hidden')"> Yes</label>
+                                <label class="radio-label"><input type="radio" name="pwd" value="No" onchange="document.getElementById('pwdDocGroup').classList.add('hidden')"> No</label>
+                            </div>
+                            <div class="error-message">Please select an option</div>
+                        </div>
+
+                        <div class="form-group full-width hidden" id="pwdDocGroup">
+                            <label>Disability Certificate</label>
+                            <input type="file" id="pwdDoc" name="pwdDoc" accept="application/pdf,image/*">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="required">Hostel Preference</label>
+                            <div class="radio-group">
+                                <label class="radio-label"><input type="radio" name="hostelPref" id="prefBoys" value="Boys Hostel" required> Boys Hostel</label>
+                                <label class="radio-label"><input type="radio" name="hostelPref" id="prefGirls" value="Girls Hostel"> Girls Hostel</label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="roommate">Roommate Preference (Optional)</label>
+                            <input type="text" id="roommate" name="roommate" placeholder="Roll No of preferred roommate">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 4: Review & Submit -->
+                <div class="form-step" id="step4">
+                    <div id="reviewContent">
+                        <!-- Populated via JS -->
+                    </div>
+
+                    <div class="declaration">
+                        <label>
+                            <input type="checkbox" id="declaration" required>
+                            <span>I certify that all information provided is true and correct to the best of my knowledge. I understand that false information may lead to cancellation of hostel allotment.</span>
+                        </label>
+                        <div class="error-message" id="declError" style="margin-top: 0.5rem; margin-left: 1.5rem;">You must accept the declaration</div>
+                    </div>
+                </div>
+
+                <!-- Buttons -->
+                <div class="btn-group">
+                    <button type="button" class="btn btn-outline" id="prevBtn" onclick="nextPrev(-1)" style="display: none;">Previous</button>
+                    <button type="button" class="btn btn-primary" id="nextBtn" onclick="nextPrev(1)" style="margin-left: auto;">Next</button>
+                </div>
+            </form>
+        </div>
+    </main>
+
+    <!-- Success Modal -->
+    <div class="modal-overlay" id="successModal">
+        <div class="modal">
+            <div class="modal-icon">✓</div>
+            <h2>Registration Successful!</h2>
+            <p>Your application for hostel accommodation has been submitted successfully.</p>
+            <div class="app-id-box" id="appIdDisplay">APP-XXXXXX</div>
+            <p style="color: var(--c-muted); font-size: 0.875rem; margin-bottom: 1.5rem;">Please save this Application ID for future reference.</p>
+            <a href="index.html" class="btn btn-primary" style="display: block; text-decoration: none;">Return to Home</a>
+        </div>
+    </div>
+
+    <script src="api.js"></script>
+    <script>
+        let currentStep = 0;
+        const steps = document.querySelectorAll('.form-step');
+        const stepperItems = document.querySelectorAll('.step');
+        
+        // Show initial step
+        showStep(currentStep);
+
+        function showStep(n) {
+            steps[n].classList.add('active');
+            
+            // Update buttons
+            document.getElementById('prevBtn').style.display = n === 0 ? 'none' : 'block';
+            
+            if (n === steps.length - 1) {
+                document.getElementById('nextBtn').innerText = 'Submit Application';
+                populateReview();
+            } else {
+                document.getElementById('nextBtn').innerText = 'Next';
+            }
+
+            // Update Stepper UI
+            stepperItems.forEach((step, index) => {
+                if (index < n) {
+                    step.classList.add('completed');
+                    step.classList.remove('active');
+                    step.querySelector('.step-circle').innerHTML = '✓';
+                } else if (index === n) {
+                    step.classList.add('active');
+                    step.classList.remove('completed');
+                    step.querySelector('.step-circle').innerHTML = index + 1;
+                } else {
+                    step.classList.remove('active', 'completed');
+                    step.querySelector('.step-circle').innerHTML = index + 1;
+                }
+            });
+        }
+
+        function nextPrev(n) {
+            if (n === 1 && !validateForm()) return false;
+            
+            steps[currentStep].classList.remove('active');
+            currentStep += n;
+            
+            // If finished
+            if (currentStep >= steps.length) {
+                submitForm();
+                return false;
+            }
+            
+            showStep(currentStep);
+        }
+
+        function validateForm() {
+            let valid = true;
+            const currentTab = steps[currentStep];
+            const inputs = currentTab.querySelectorAll('input[required], select[required]');
+            
+            // Remove previous error states
+            currentTab.querySelectorAll('.form-group.error').forEach(el => el.classList.remove('error'));
+            
+            // Reset decl error
+            if (currentStep === 3) {
+                document.getElementById('declError').style.display = 'none';
+            }
+
+            inputs.forEach(input => {
+                // Check if element is visible (not hidden by conditional logic)
+                if (input.offsetParent !== null) {
+                    if (input.type === 'radio') {
+                        const name = input.name;
+                        const checked = document.querySelector(`input[name="${name}"]:checked`);
+                        if (!checked) {
+                            input.closest('.form-group').classList.add('error');
+                            valid = false;
+                        }
+                    } else if (input.type === 'checkbox') {
+                        if (!input.checked) {
+                            document.getElementById('declError').style.display = 'block';
+                            valid = false;
+                        }
+                    } else if (!input.checkValidity()) {
+                        input.closest('.form-group').classList.add('error');
+                        valid = false;
+                    }
+                }
+            });
+
+            return valid;
+        }
+
+        // Dependent Logic
+        function toggleCategoryFields() {
+            const dom = document.querySelector('input[name="domicile"]:checked')?.value;
+            const stateGroup = document.getElementById('stateGroup');
+            const stateInput = document.getElementById('state');
+            const govtEmpGroup = document.getElementById('govtEmployeeGroup');
+            
+            if (dom === 'Outside Delhi') {
+                stateGroup.classList.remove('hidden');
+                stateInput.setAttribute('required', 'required');
+                
+                govtEmpGroup.classList.add('hidden');
+                document.querySelectorAll('input[name="govtEmp"]').forEach(r => r.removeAttribute('required'));
+            } else if (dom === 'Delhi') {
+                stateGroup.classList.add('hidden');
+                stateInput.removeAttribute('required');
+                
+                govtEmpGroup.classList.remove('hidden');
+                document.querySelectorAll('input[name="govtEmp"]').forEach(r => r.setAttribute('required', 'required'));
+            }
+        }
+
+        // Auto-set hostel preference based on gender
+        document.querySelectorAll('input[name="gender"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                if (e.target.value === 'Male') {
+                    document.getElementById('prefBoys').checked = true;
+                } else {
+                    document.getElementById('prefGirls').checked = true;
+                }
+            });
+        });
+
+        function populateReview() {
+            const reviewDiv = document.getElementById('reviewContent');
+            reviewDiv.innerHTML = '';
+            
+            const sections = [
+                {
+                    title: 'Personal Details',
+                    fields: [
+                        { label: 'Full Name', id: 'fullName' },
+                        { label: 'Date of Birth', id: 'dob' },
+                        { label: 'Gender', name: 'gender', type: 'radio' },
+                        { label: 'Mobile', id: 'mobile' },
+                        { label: 'Email', id: 'email' },
+                        { label: 'Aadhaar', id: 'aadhaar' }
+                    ]
+                },
+                {
+                    title: 'Academic Details',
+                    fields: [
+                        { label: 'Roll Number', id: 'rollNo' },
+                        { label: 'Programme', id: 'programme' },
+                        { label: 'Branch', id: 'branch' },
+                        { label: 'Year', id: 'year' },
+                        { label: '12th Marks (%)', id: 'marks12' }
+                    ]
+                },
+                {
+                    title: 'Category & Eligibility',
+                    fields: [
+                        { label: 'Domicile', name: 'domicile', type: 'radio' },
+                        { label: 'Distance (KM)', id: 'distance' },
+                        { label: 'PWD Status', name: 'pwd', type: 'radio' },
+                        { label: 'Hostel Pref.', name: 'hostelPref', type: 'radio' }
+                    ]
+                }
+            ];
+
+            let html = '';
+            
+            sections.forEach(sec => {
+                html += `<div class="review-section"><h3>${sec.title}</h3>`;
+                sec.fields.forEach(f => {
+                    let val = '';
+                    if (f.type === 'radio') {
+                        const checked = document.querySelector(`input[name="${f.name}"]:checked`);
+                        val = checked ? checked.value : 'N/A';
+                    } else {
+                        val = document.getElementById(f.id)?.value || 'N/A';
+                    }
+                    html += `
+                        <div class="review-row">
+                            <div class="review-label">${f.label}</div>
+                            <div class="review-value">${val}</div>
+                        </div>
+                    `;
+                });
+                html += `</div>`;
+            });
+
+            reviewDiv.innerHTML = html;
+        }
+
+        async function submitForm() {
+            const btn = document.getElementById('nextBtn');
+            btn.innerText = 'Submitting...';
+            btn.disabled = true;
+            
+            try {
+                const formData = {
+                    Name: document.getElementById('fullName')?.value || '',
+                    DOB: document.getElementById('dob')?.value || '',
+                    Gender: document.querySelector('input[name="gender"]:checked')?.value || '',
+                    Phone: document.getElementById('mobile')?.value || '',
+                    Email: document.getElementById('email')?.value || '',
+                    Aadhaar: document.getElementById('aadhaar')?.value || '',
+                    EnrollmentNo: document.getElementById('rollNo')?.value || '',
+                    Programme: document.getElementById('programme')?.value || '',
+                    Branch: document.getElementById('branch')?.value || '',
+                    Year: document.getElementById('year')?.value || '',
+                    TwelfthMarks: parseFloat(document.getElementById('marks12')?.value || 0),
+                    Category: document.querySelector('input[name="domicile"]:checked')?.value || '',
+                    State: document.getElementById('state')?.value || '',
+                    ParentsTransferred: document.querySelector('input[name="govtEmp"]:checked')?.value || 'No',
+                    DistanceKm: parseFloat(document.getElementById('distance')?.value || 0),
+                    PWD: document.querySelector('input[name="pwd"]:checked')?.value || 'No',
+                    HostelPref: document.querySelector('input[name="hostelPref"]:checked')?.value || '',
+                    RoommatePreference: document.getElementById('roommatePref')?.value || ''
+                };
+                const res = await HostelAPI.submitApplication(formData);
+                document.getElementById('appIdDisplay').innerText = res.applicationId || 'Submitted';
+                document.getElementById('successModal').classList.add('active');
+            } catch(e) {
+                console.error(e);
+                alert('Failed to submit application. Please try again.');
+                btn.innerText = 'Submit Application';
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
