@@ -295,6 +295,10 @@
         .status-allocated { background: #e6f4ea; color: #1e8e3e; }
         .status-waitlisted { background: #fef7e0; color: #f29900; }
         .status-pending { background: #e8f0fe; color: #1a73e8; }
+        .status-discrepancy { background: #fce8e6; color: #b3261e; }
+        .status-verified { background: #e6f4ea; color: #137333; }
+        .status-missing { background: #fce8e6; color: #b3261e; }
+        .status-neutral { background: #eef2f7; color: #64748b; }
         
         /* Filter Bar */
         .filter-bar {
@@ -367,6 +371,76 @@
         textarea.form-control {
             resize: vertical;
             min-height: 100px;
+        }
+
+        #documentReviewModal .modal-content {
+            max-height: 88vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 24px 28px;
+            box-sizing: border-box;
+            text-align: left;
+        }
+
+        .doc-modal-scrollable {
+            overflow-y: auto;
+            flex: 1;
+            padding-right: 6px;
+            margin: 12px 0;
+        }
+
+        .doc-modal-scrollable::-webkit-scrollbar {
+            width: 6px;
+        }
+        .doc-modal-scrollable::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        .document-review-list {
+            display: grid;
+            gap: 14px;
+            margin-bottom: 16px;
+        }
+
+        .document-review-item {
+            border: 1px solid var(--c-border);
+            border-radius: 8px;
+            padding: 14px;
+            background: #fff;
+        }
+
+        .document-review-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .document-review-title {
+            font-weight: 700;
+            color: var(--c-dark);
+        }
+
+        .document-link {
+            font-size: .84rem;
+            color: var(--c-primary);
+            font-weight: 600;
+        }
+
+        .document-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        .document-actions .form-control {
+            min-width: 220px;
+            flex: 1;
         }
 
         .notices-list {
@@ -451,7 +525,7 @@
         </a>
         <a class="menu-item" data-target="students">
             <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
-            Students
+            Verification
         </a>
         <a class="menu-item" data-target="rooms">
             <svg viewBox="0 0 24 24"><path d="M4 4h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 10h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 16h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4z"/></svg>
@@ -589,7 +663,16 @@
         <section id="students" class="section">
             <div class="page-header">
                 <h1 class="page-title">Students Directory</h1>
-                <input type="text" id="students-search-input" class="filter-select" placeholder="Search by name or roll no..." style="width: 300px;" oninput="applyStudentSearch()">
+                <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+                    <input type="text" id="students-search-input" class="filter-select" placeholder="Search by name or roll no..." style="width: 260px;" oninput="applyStudentFilters()">
+                    <select class="filter-select" id="students-doc-filter" onchange="applyStudentFilters()">
+                        <option value="">All Documents</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Verified">Verified</option>
+                        <option value="Discrepancy">Discrepancy</option>
+                    </select>
+                    <button class="btn-primary" onclick="sendBulkDiscrepancyEmails()">Send Discrepancy Emails (Unallotted)</button>
+                </div>
             </div>
             
             <div class="table-container">
@@ -605,6 +688,7 @@
                             <th>Distance</th>
                             <th>PWD</th>
                             <th>Status</th>
+                            <th>Documents</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -746,6 +830,33 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="documentReviewModal">
+        <div class="modal-content" style="max-width: 860px;">
+            <h2 class="modal-title" style="margin-bottom:4px; text-align:center;">Document Verification</h2>
+            <p class="modal-body" id="docReviewStudentMeta" style="margin-bottom:8px; text-align:center; font-size:0.9rem;">Review uploaded documents before allocation.</p>
+            
+            <div class="doc-modal-scrollable">
+                <div class="document-review-list" id="docReviewList"></div>
+                <div class="form-group" id="docOverallRemarksContainer" style="margin-top:12px;">
+                    <label style="font-weight:600; font-size:0.9rem;">Overall Remarks</label>
+                    <textarea class="form-control" id="docOverallRemarks" placeholder="Add a message for the student if any document has a discrepancy."></textarea>
+                </div>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center; border-top:1px solid var(--c-border); padding-top:14px; margin-top:auto;">
+                <div>
+                    <span class="status-badge status-pending" id="docOverallStatusPreview">Pending</span>
+                    <span style="font-size:.82rem; color:var(--c-muted); margin-left:8px;" id="docEmailMeta"></span>
+                </div>
+                <div class="modal-actions" style="margin:0;">
+                    <button class="btn-outline" onclick="closeDocumentReviewModal()">Cancel</button>
+                    <button class="btn-primary" onclick="saveDocumentVerification()">Save Verification</button>
+                    <button class="btn-accent" id="sendDocDiscrepancyBtn" onclick="sendSelectedDiscrepancyEmail()">Send Discrepancy Mail</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="api.js"></script>
     <script>
         // SPA Navigation
@@ -775,15 +886,18 @@
         });
 
         let currentData = [];
+        let currentStudentsData = [];
+        let currentDocumentStudent = null;
 
         async function loadSectionData(target) {
             try {
                 if (target === 'dashboard') {
                     await initDashboard();
                 } else if (target === 'students') {
-                    document.getElementById('students-tbody').innerHTML = '<tr><td colspan="10" style="text-align:center"><div class="loader"></div></td></tr>';
+                    document.getElementById('students-tbody').innerHTML = '<tr><td colspan="11" style="text-align:center"><div class="loader"></div></td></tr>';
                     const data = await HostelAPI.getStudents();
                     currentData = data;
+                    currentStudentsData = data;
                     renderStudents(data);
                 } else if (target === 'rooms') {
                     document.getElementById('bh-rooms').innerHTML = '<div class="loader"></div>';
@@ -957,18 +1071,19 @@
             renderAllocations(filtered);
         }
 
-        function applyStudentSearch() {
-            if (!currentData || !Array.isArray(currentData)) return;
+        function applyStudentFilters() {
+            const source = currentStudentsData && currentStudentsData.length ? currentStudentsData : currentData;
+            if (!source || !Array.isArray(source)) return;
             const query = (document.getElementById('students-search-input')?.value || '').toLowerCase().trim();
-            if (!query) {
-                renderStudents(currentData);
-                return;
-            }
+            const docFilter = (document.getElementById('students-doc-filter')?.value || '').toLowerCase();
 
-            const filtered = currentData.filter(s => {
+            const filtered = source.filter(s => {
                 const name = String(getStudentValue(s, 'Name')).toLowerCase();
                 const enroll = String(getStudentValue(s, 'EnrollmentNo')).toLowerCase();
-                return name.includes(query) || enroll.includes(query);
+                const docStatus = String(getStudentValue(s, 'DocumentStatus') || 'Pending').toLowerCase();
+                if (query && !name.includes(query) && !enroll.includes(query)) return false;
+                if (docFilter && docStatus !== docFilter) return false;
+                return true;
             });
 
             renderStudents(filtered);
@@ -984,6 +1099,25 @@
                 }
             }
             return '';
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, ch => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[ch]));
+        }
+
+        function getDocumentBadgeClass(status) {
+            const statusStr = String(status || 'Pending').toLowerCase();
+            if (statusStr === 'verified') return 'status-verified';
+            if (statusStr === 'discrepancy') return 'status-discrepancy';
+            if (statusStr === 'missing') return 'status-missing';
+            if (statusStr === 'not applicable') return 'status-neutral';
+            return 'status-pending';
         }
 
         function renderAllocations(allocations) {
@@ -1042,25 +1176,288 @@
                 const marks = getStudentValue(s, 'TwelfthMarks') || s.marks12 || s.score || '0';
                 const category = getStudentValue(s, 'Category') || s.category || '-';
                 const dist = getStudentValue(s, 'DistanceKm') || s.distance || '0';
+                const pwd = getStudentValue(s, 'PWD') || '-';
                 const status = getStudentValue(s, 'Status') || s.status || 'Pending';
+                const docStatus = getStudentValue(s, 'DocumentStatus') || 'Pending';
+                const emailSentAt = getStudentValue(s, 'DiscrepancyEmailSentAt');
                 
                 const statusStr = String(status).toLowerCase();
                 const badgeClass = statusStr === 'allocated' ? 'status-allocated' : (statusStr === 'waitlisted' ? 'status-waitlisted' : 'status-pending');
+                const docBadgeClass = getDocumentBadgeClass(docStatus);
                 
                 stuBody.innerHTML += `<tr>
-                    <td>${enroll}</td>
-                    <td>${name}</td>
-                    <td>${gender}</td>
-                    <td>${prog}${branch ? ' (' + branch + ')' : ''}</td>
-                    <td>${category}</td>
-                    <td>${marks}%</td>
-                    <td>${dist} km</td>
+                    <td>${escapeHtml(enroll)}</td>
+                    <td>${escapeHtml(name)}</td>
+                    <td>${escapeHtml(gender)}</td>
+                    <td>${escapeHtml(prog)}${branch ? ' (' + escapeHtml(branch) + ')' : ''}</td>
+                    <td>${escapeHtml(category)}</td>
+                    <td>${escapeHtml(marks)}%</td>
+                    <td>${escapeHtml(dist)} km</td>
+                    <td>${escapeHtml(pwd)}</td>
                     <td><span class="status-badge ${badgeClass}">${status}</span></td>
                     <td>
-                        <button class="btn-outline" style="padding:4px 8px; font-size:0.8rem;" onclick="showAdminToast('${name} (${enroll})', 'info')">View</button>
+                        <span class="status-badge ${docBadgeClass}">${escapeHtml(docStatus)}</span>
+                        ${emailSentAt ? `<div style="font-size:.72rem; color:var(--c-muted); margin-top:4px;">Mail sent</div>` : ''}
+                    </td>
+                    <td>
+                        <button class="btn-outline" style="padding:4px 8px; font-size:0.8rem;" onclick="openDocumentReviewModal('${encodeURIComponent(enroll)}')">Review Docs</button>
                     </td>
                 </tr>`;
             });
+        }
+
+        function getStudentDocumentDefinitions(student) {
+            return [
+                { key: 'aadhaar', label: 'Aadhaar Document', file: 'AadhaarFile', status: 'AadhaarStatus', remarks: 'AadhaarRemarks', required: true },
+                { key: 'photo', label: 'Profile Photo', file: 'PhotoFile', status: 'PhotoStatus', remarks: 'PhotoRemarks', required: true },
+                { key: 'marksheet', label: '12th Marksheet', file: 'MarksheetFile', status: 'MarksheetStatus', remarks: 'MarksheetRemarks', required: true },
+                { key: 'pwdCertificate', label: 'PWD Certificate', file: 'PwdCertificateFile', status: 'PwdCertificateStatus', remarks: 'PwdCertificateRemarks', required: String(getStudentValue(student, 'PWD')).toLowerCase() === 'yes' }
+            ];
+        }
+
+        function openDocumentReviewModal(encodedEnroll) {
+            const enroll = decodeURIComponent(encodedEnroll || '');
+            const source = currentStudentsData && currentStudentsData.length ? currentStudentsData : currentData;
+            currentDocumentStudent = source.find(s => String(getStudentValue(s, 'EnrollmentNo')).trim() === enroll);
+            if (!currentDocumentStudent) {
+                showAdminToast('Student record not found.', 'error');
+                return;
+            }
+
+            const name = getStudentValue(currentDocumentStudent, 'Name') || 'Student';
+            const status = getStudentValue(currentDocumentStudent, 'Status') || 'Pending';
+            const appId = getStudentValue(currentDocumentStudent, 'ApplicationID') || '-';
+            document.getElementById('docReviewStudentMeta').textContent = `${name} (${enroll}) • ${appId} • ${status}`;
+            document.getElementById('docOverallRemarks').value = getStudentValue(currentDocumentStudent, 'DocumentRemarks') || '';
+            document.getElementById('docEmailMeta').textContent = getStudentValue(currentDocumentStudent, 'DiscrepancyEmailSentAt')
+                ? `Last email: ${getStudentValue(currentDocumentStudent, 'DiscrepancyEmailSentAt')}`
+                : '';
+
+            const list = document.getElementById('docReviewList');
+            list.innerHTML = '';
+            getStudentDocumentDefinitions(currentDocumentStudent).forEach(doc => {
+                const fileUrl = getStudentValue(currentDocumentStudent, doc.file);
+                const normalizedFile = String(fileUrl || '').trim();
+                const isApplicable = doc.required && normalizedFile !== 'Not Applicable';
+                const statusValue = isApplicable ? (getStudentValue(currentDocumentStudent, doc.status) || 'Pending') : 'Not Applicable';
+                const remarksValue = getStudentValue(currentDocumentStudent, doc.remarks) || '';
+                const canOpen = isApplicable && normalizedFile && normalizedFile !== 'Not Applicable' && normalizedFile !== '';
+
+                if (!isApplicable) {
+                    list.innerHTML += `
+                        <div class="document-review-item" data-doc-key="${doc.key}" data-required="false">
+                            <div class="document-review-head" style="margin-bottom:0;">
+                                <div>
+                                    <div class="document-review-title">${escapeHtml(doc.label)}</div>
+                                    <div style="font-size:0.8rem; color:var(--c-muted); margin-top:2px;">Not Applicable for this student</div>
+                                </div>
+                                <span class="status-badge status-neutral" data-doc-status-label>Not Applicable</span>
+                            </div>
+                            <input type="hidden" data-doc-status value="Not Applicable">
+                            <input type="hidden" data-doc-remarks value="">
+                        </div>
+                    `;
+                } else {
+                    let docLabelHtml = '';
+                    if (canOpen) {
+                        docLabelHtml = `<a class="document-link" href="${escapeHtml(normalizedFile)}" target="_blank" rel="noopener">Open uploaded document</a>`;
+                    } else if (statusValue === 'Verified') {
+                        docLabelHtml = `<span style="font-size:0.8rem; color:var(--c-muted);">Verified without file upload</span>`;
+                    } else {
+                        docLabelHtml = `<span class="status-badge status-missing">Missing Document</span>`;
+                    }
+
+                    list.innerHTML += `
+                        <div class="document-review-item" data-doc-key="${doc.key}" data-required="true">
+                            <div class="document-review-head">
+                                <div>
+                                    <div class="document-review-title">${escapeHtml(doc.label)}</div>
+                                    <div data-doc-file-status>${docLabelHtml}</div>
+                                </div>
+                                <span class="status-badge ${getDocumentBadgeClass(statusValue)}" data-doc-status-label>${escapeHtml(statusValue)}</span>
+                            </div>
+                            <div class="document-actions">
+                                <button class="btn-outline" type="button" ${canOpen ? '' : 'disabled style="opacity: 0.5; cursor: not-allowed;" title="Cannot verify: No document uploaded"'} onclick="setDocumentReviewStatus('${doc.key}', 'Verified')">Verify</button>
+                                <button class="btn-outline" type="button" onclick="setDocumentReviewStatus('${doc.key}', 'Discrepancy')">Discrepancy</button>
+                                <input class="form-control" data-doc-remarks placeholder="Remarks for ${escapeHtml(doc.label)}" value="${escapeHtml(remarksValue)}">
+                                <input type="hidden" data-doc-status value="${escapeHtml(statusValue)}">
+                                <input type="hidden" data-doc-file-url value="${escapeHtml(normalizedFile)}">
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+
+            refreshDocumentStatusPreview();
+            document.getElementById('documentReviewModal').classList.add('active');
+        }
+
+        function closeDocumentReviewModal() {
+            document.getElementById('documentReviewModal').classList.remove('active');
+            currentDocumentStudent = null;
+        }
+
+        function setDocumentReviewStatus(key, status) {
+            const item = document.querySelector(`.document-review-item[data-doc-key="${key}"]`);
+            if (!item) return;
+
+            if (status === 'Verified') {
+                const fileInput = item.querySelector('[data-doc-file-url]');
+                const fileUrl = fileInput ? fileInput.value : '';
+                const normalizedFile = String(fileUrl).trim();
+                const canOpen = normalizedFile && normalizedFile !== 'Not Applicable' && normalizedFile !== '';
+                if (!canOpen) {
+                    showAdminToast('Cannot verify: No document uploaded.', 'error');
+                    return;
+                }
+            }
+
+            const input = item.querySelector('[data-doc-status]');
+            if (input) input.value = status;
+            const label = item.querySelector('[data-doc-status-label]');
+            if (label) {
+                label.textContent = status;
+                label.className = `status-badge ${getDocumentBadgeClass(status)}`;
+            }
+
+            const fileStatusEl = item.querySelector('[data-doc-file-status]');
+            if (fileStatusEl) {
+                const fileInput = item.querySelector('[data-doc-file-url]');
+                const fileUrl = fileInput ? fileInput.value : '';
+                const normalizedFile = String(fileUrl).trim();
+                const canOpen = normalizedFile && normalizedFile !== 'Not Applicable' && normalizedFile !== '';
+
+                if (canOpen) {
+                    fileStatusEl.innerHTML = `<a class="document-link" href="${escapeHtml(normalizedFile)}" target="_blank" rel="noopener">Open uploaded document</a>`;
+                } else if (status === 'Verified') {
+                    fileStatusEl.innerHTML = `<span style="font-size:0.8rem; color:var(--c-muted);">Verified without file upload</span>`;
+                } else {
+                    fileStatusEl.innerHTML = `<span class="status-badge status-missing">Missing Document</span>`;
+                }
+            }
+
+            refreshDocumentStatusPreview();
+        }
+
+        function collectDocumentReviewPayload() {
+            const documents = {};
+            const remarksByDocument = {};
+            let hasDiscrepancy = false;
+            let hasPending = false;
+
+            document.querySelectorAll('.document-review-item').forEach(item => {
+                const key = item.getAttribute('data-doc-key');
+                const required = item.getAttribute('data-required') === 'true';
+                const statusInput = item.querySelector('[data-doc-status]');
+                const status = statusInput ? statusInput.value : (required ? 'Pending' : 'Not Applicable');
+                const remarksInput = item.querySelector('[data-doc-remarks]');
+                const remarks = remarksInput ? remarksInput.value : '';
+
+                documents[key] = status;
+                remarksByDocument[key] = remarks;
+                const normalized = String(status).toLowerCase();
+                if (required && (normalized === 'discrepancy' || normalized === 'missing')) hasDiscrepancy = true;
+                if (required && (normalized === 'pending' || !normalized)) hasPending = true;
+            });
+
+            const documentStatus = hasDiscrepancy ? 'Discrepancy' : (hasPending ? 'Pending' : 'Verified');
+            return {
+                ApplicationID: getStudentValue(currentDocumentStudent, 'ApplicationID'),
+                EnrollmentNo: getStudentValue(currentDocumentStudent, 'EnrollmentNo'),
+                documents,
+                remarksByDocument,
+                DocumentStatus: documentStatus,
+                DocumentRemarks: document.getElementById('docOverallRemarks')?.value || ''
+            };
+        }
+
+        function refreshDocumentStatusPreview() {
+            const payload = currentDocumentStudent ? collectDocumentReviewPayload() : { DocumentStatus: 'Pending' };
+            const badge = document.getElementById('docOverallStatusPreview');
+            if (badge) {
+                badge.textContent = payload.DocumentStatus;
+                badge.className = `status-badge ${getDocumentBadgeClass(payload.DocumentStatus)}`;
+            }
+
+            const sendBtn = document.getElementById('sendDocDiscrepancyBtn');
+            const remarksContainer = document.getElementById('docOverallRemarksContainer');
+            const studentStatus = String(getStudentValue(currentDocumentStudent, 'Status') || '').toLowerCase();
+            const isVerified = payload.DocumentStatus === 'Verified';
+
+            if (sendBtn) {
+                if (isVerified || studentStatus === 'allocated' || payload.DocumentStatus !== 'Discrepancy') {
+                    sendBtn.style.display = 'none';
+                } else {
+                    sendBtn.style.display = 'inline-block';
+                }
+            }
+
+            if (remarksContainer) {
+                if (isVerified) {
+                    remarksContainer.style.display = 'none';
+                } else {
+                    remarksContainer.style.display = 'block';
+                }
+            }
+        }
+
+        async function saveDocumentVerification() {
+            if (!currentDocumentStudent) return;
+            const payload = collectDocumentReviewPayload();
+            try {
+                const res = await HostelAPI.updateDocumentVerification(payload);
+                if (res && res.error) throw new Error(res.error);
+                showAdminToast('Document verification saved.', 'success');
+                await loadSectionData('students');
+                const modal = document.getElementById('documentReviewModal');
+                if (modal.classList.contains('active')) {
+                    currentDocumentStudent = currentStudentsData.find(s => String(getStudentValue(s, 'EnrollmentNo')).trim() === String(payload.EnrollmentNo).trim()) || currentDocumentStudent;
+                    refreshDocumentStatusPreview();
+                }
+                return true;
+            } catch (err) {
+                console.error(err);
+                showAdminToast('Failed to save document verification: ' + err.message, 'error');
+                return false;
+            }
+        }
+
+        async function sendSelectedDiscrepancyEmail() {
+            if (!currentDocumentStudent) return;
+            const payload = collectDocumentReviewPayload();
+            if (payload.DocumentStatus !== 'Discrepancy') {
+                showAdminToast('Mark at least one document as discrepancy first.', 'error');
+                return;
+            }
+
+            const saved = await saveDocumentVerification();
+            if (!saved) return;
+            try {
+                const res = await HostelAPI.sendDiscrepancyEmail({
+                    ApplicationID: payload.ApplicationID,
+                    EnrollmentNo: payload.EnrollmentNo
+                });
+                if (res && res.error) throw new Error(res.error);
+                showAdminToast((res && res.message) || 'Discrepancy email sent.', 'success');
+                closeDocumentReviewModal();
+                loadSectionData('students');
+            } catch (err) {
+                console.error(err);
+                showAdminToast(err.message || 'Failed to send discrepancy email.', 'error');
+            }
+        }
+
+        async function sendBulkDiscrepancyEmails() {
+            try {
+                showAdminToast('Sending discrepancy emails...', 'info');
+                const res = await HostelAPI.sendDiscrepancyEmails({});
+                if (res && res.error) throw new Error(res.error);
+                showAdminToast((res && res.message) || 'Discrepancy email process complete.', 'success');
+                loadSectionData('students');
+            } catch (err) {
+                console.error(err);
+                showAdminToast(err.message || 'Failed to send discrepancy emails.', 'error');
+            }
         }
 
         function renderRooms(rooms) {

@@ -29,12 +29,28 @@ function runAllocationEngine() {
 
   try {
     const allStudents = getAllStudents();
-    const pendingStudents = allStudents.filter(s => {
+    const totalPendingStudents = allStudents.filter(s => {
       const st = String(getStudentValue(s, 'Status')).toLowerCase();
       return st === 'pending' || st === '' || st === 'undefined';
     });
 
+    const pendingStudents = totalPendingStudents.filter(s => {
+      const docStatus = String(getStudentValue(s, 'DocumentStatus')).toLowerCase();
+      return docStatus === 'verified';
+    });
+
+    const unverifiedPendingCount = totalPendingStudents.length - pendingStudents.length;
+
     if (pendingStudents.length === 0) {
+      if (unverifiedPendingCount > 0) {
+        return {
+          success: true,
+          allocated: 0,
+          waitlisted: 0,
+          totalPending: totalPendingStudents.length,
+          message: `No allocations processed. There are ${unverifiedPendingCount} pending application(s) in queue, but none have fully verified documents yet.`
+        };
+      }
       const allocations = getAllAllocations();
       return { 
         success: true, 
@@ -53,7 +69,7 @@ function runAllocationEngine() {
 
     const boys = pendingStudents.filter(s => {
       const g = String(getStudentValue(s, 'Gender')).toLowerCase();
-      return g.includes('male') || g.includes('boy') || g === 'm';
+      return (g.includes('male') && !g.includes('female')) || g.includes('boy') || g === 'm';
     });
     const girls = pendingStudents.filter(s => {
       const g = String(getStudentValue(s, 'Gender')).toLowerCase();
@@ -97,7 +113,7 @@ function runAllocationEngine() {
     success: true, 
     allocated: allocatedCount, 
     waitlisted: waitlistedCount, 
-    message: `Allocation completed successfully! Allocated: ${allocatedCount}, Waitlisted: ${waitlistedCount}` 
+    message: `Allocation completed successfully! Allocated: ${allocatedCount}, Waitlisted: ${waitlistedCount}.${unverifiedPendingCount > 0 ? ' (Skipped ' + unverifiedPendingCount + ' pending student(s) due to unverified documents)' : ''}` 
   };
 }
 

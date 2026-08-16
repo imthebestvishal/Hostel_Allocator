@@ -39,15 +39,19 @@ function showToast(message, type = 'info') {
     'use strict';
 
     // ── Config ──────────────────────────────────────────────
-    const TOTAL_FRAMES  = 56;
+    const TOTAL_FRAMES  = 162;
+    const FRAME_START   = 7;       // first file is frame_0007.jpg
     const IMAGE_PATH    = 'assets/sequence/';
     const EXT           = '.jpg';
+    const LERP_SPEED    = 0.08;    // smoothing factor (0.05 = silky, 0.15 = snappy)
 
     // ── State ───────────────────────────────────────────────
-    const frames        = [];   // HTMLImageElement | null
+    const frames        = [];
     let   loadedCount   = 0;
-    let   currentFrame  = 0;
-    let   rafId         = null;
+    let   targetFrame   = 0;       // where scroll wants us to be (integer)
+    let   smoothFrame   = 0;       // current interpolated position (float)
+    let   lastRendered  = -1;      // last actually drawn frame index
+    let   animating     = false;
     let   allLoaded     = false;
 
     // ── DOM ─────────────────────────────────────────────────
@@ -65,43 +69,42 @@ function showToast(message, type = 'info') {
         return;
     }
 
-    // ── Pad frame number to 5 digits ─────────────────────────
-    function padded(n) {
-        return String(n).padStart(5, '0');
+    // ── Frame filename builder ──────────────────────────────
+    function frameName(n) {
+        return 'frame_' + String(n).padStart(4, '0');
     }
 
     // ── Resize canvas to fill viewport ──────────────────────
     function resizeCanvas() {
         canvas.width  = window.innerWidth;
         canvas.height = window.innerHeight;
-        renderFrame(currentFrame);
+        lastRendered = -1; // force re-render after resize
     }
 
     // ── Draw a frame to canvas (cover-fit) ──────────────────
     function renderFrame(idx) {
+        if (idx === lastRendered) return;
         const img = frames[idx];
         if (!img || !img.complete || img.naturalWidth === 0) return;
 
         const cW = canvas.width,  cH = canvas.height;
         const iW = img.naturalWidth, iH = img.naturalHeight;
 
-        // CSS object-fit: cover equivalent
         const scale = Math.max(cW / iW, cH / iH);
         const dW = iW * scale, dH = iH * scale;
         const dx = (cW - dW) / 2, dy = (cH - dH) / 2;
 
         ctx.clearRect(0, 0, cW, cH);
         ctx.drawImage(img, dx, dy, dW, dH);
+        lastRendered = idx;
     }
 
-    // ── Scroll → frame index ─────────────────────────────────
+    // ── Scroll → target frame index ─────────────────────────
     function getFrameFromScroll() {
-        const rect         = scrollHero.getBoundingClientRect();
         const sectionTop   = scrollHero.offsetTop;
         const sectionH     = scrollHero.offsetHeight;
         const viewportH    = window.innerHeight;
 
-        // How far we have scrolled into this section (0 … sectionH - viewportH)
         const scrolled  = Math.max(0, window.scrollY - sectionTop);
         const maxScroll = Math.max(1, sectionH - viewportH);
         const progress  = Math.min(scrolled / maxScroll, 1);
@@ -109,9 +112,38 @@ function showToast(message, type = 'info') {
         return Math.min(Math.floor(progress * TOTAL_FRAMES), TOTAL_FRAMES - 1);
     }
 
-    // ── Scroll handler ──────────────────────────────────────
+    // ── Smooth animation loop (runs at 60fps) ───────────────
+    function animationLoop() {
+        // Lerp toward target
+        smoothFrame += (targetFrame - smoothFrame) * LERP_SPEED;
+
+        // Snap when very close to avoid infinite micro-updates
+        if (Math.abs(smoothFrame - targetFrame) < 0.3) {
+            smoothFrame = targetFrame;
+        }
+
+        const frameIdx = Math.round(smoothFrame);
+        renderFrame(frameIdx);
+
+        // Keep looping if we haven't converged
+        if (Math.abs(smoothFrame - targetFrame) > 0.01) {
+            requestAnimationFrame(animationLoop);
+        } else {
+            animating = false;
+        }
+    }
+
+    function startAnimating() {
+        if (!animating) {
+            animating = true;
+            requestAnimationFrame(animationLoop);
+        }
+    }
+
+    // ── Scroll handler (lightweight — just sets target) ─────
     function onScroll() {
-        const idx = getFrameFromScroll();
+        targetFrame = getFrameFromScroll();
+        startAnimating();
 
         // Hide scroll cue after initial scroll
         if (window.scrollY > 60) {
@@ -126,16 +158,6 @@ function showToast(message, type = 'info') {
         } else {
             navbar && navbar.classList.remove('scrolled');
         }
-
-        if (idx === currentFrame) return;
-        currentFrame = idx;
-
-        // Cancel any pending frame, schedule a new one
-        if (rafId) cancelAnimationFrame(rafId);
-        rafId = requestAnimationFrame(() => {
-            renderFrame(currentFrame);
-            rafId = null;
-        });
     }
 
     // ── Load images ─────────────────────────────────────────
@@ -158,10 +180,10 @@ function showToast(message, type = 'info') {
                 renderFrame(0);
             }
 
-            // Also re-render current frame if it just loaded
-            if (index === currentFrame) {
-                cancelAnimationFrame(rafId);
-                rafId = requestAnimationFrame(() => renderFrame(currentFrame));
+            // Re-render if this frame is the one we're trying to show
+            if (index === Math.round(smoothFrame)) {
+                lastRendered = -1;
+                startAnimating();
             }
 
             if (loadedCount >= TOTAL_FRAMES) {
@@ -175,13 +197,12 @@ function showToast(message, type = 'info') {
         };
 
         img.onerror = () => {
-            console.warn(`[Sequence] Failed to load frame ${index + 1}`);
-            // Put a dummy so we don't retry
+            console.warn(`[Sequence] Failed to load frame ${index + FRAME_START}`);
             frames[index] = { complete: false, naturalWidth: 0 };
             loadedCount++;
         };
 
-        img.src = `${IMAGE_PATH}${padded(index + 1)}${EXT}`;
+        img.src = `${IMAGE_PATH}${frameName(index + FRAME_START)}${EXT}`;
     }
 
     // ── Progressive load — prioritise first frame, then rest ─
@@ -197,8 +218,8 @@ function showToast(message, type = 'info') {
             if (i >= TOTAL_FRAMES) return;
             loadImage(i);
             i++;
-            // Batch 6 at a time, pause 1 frame between batches
-            if (i % 6 === 0) {
+            // Batch 8 at a time, pause 1 frame between batches
+            if (i % 8 === 0) {
                 requestAnimationFrame(step);
             } else {
                 step();
@@ -209,7 +230,6 @@ function showToast(message, type = 'info') {
 
     // ── Init ─────────────────────────────────────────────────
     function init() {
-        // Set initial canvas size
         canvas.width  = window.innerWidth;
         canvas.height = window.innerHeight;
 

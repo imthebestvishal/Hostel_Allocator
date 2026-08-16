@@ -349,6 +349,55 @@
             margin-top: 4px;
         }
 
+        .probability-card {
+            display: none;
+            margin-top: 12px;
+            padding: 14px;
+            border: 1px solid var(--c-border);
+            border-radius: 8px;
+            background: #f8fafc;
+        }
+        .probability-card.visible {
+            display: block;
+        }
+        .probability-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .probability-percent {
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--c-primary);
+        }
+        .probability-bar {
+            height: 8px;
+            border-radius: 999px;
+            background: #e2e8f0;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        .probability-fill {
+            height: 100%;
+            width: 0;
+            background: linear-gradient(90deg, var(--c-accent), var(--c-primary));
+            border-radius: inherit;
+        }
+        .probability-meta {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            font-size: 12px;
+            color: var(--c-muted);
+        }
+        .probability-meta strong {
+            display: block;
+            color: var(--c-dark);
+            font-size: 13px;
+        }
+
         /* Table */
         table {
             width: 100%;
@@ -533,7 +582,7 @@
             <form id="login-form">
                 <div class="form-group">
                     <label class="form-label" for="enrollment">Enrollment Number</label>
-                    <input type="text" id="enrollment" class="form-control" placeholder="e.g. 00116403220" required>
+                    <input type="text" id="enrollment" class="form-control" placeholder="Enter your 11-digit enrollment no" required>
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="dob">Date of Birth (Password)</label>
@@ -541,8 +590,8 @@
                 </div>
                 <button type="submit" class="btn btn-primary">Login</button>
             </form>
-            
-            <a href="register.html" class="register-link">New here? Register</a>
+
+            <a href="register.html" class="register-link" style="margin-top: 16px; display: inline-block;">New student? Submit hostel application</a>
         </div>
     </div>
 
@@ -698,7 +747,22 @@
                             <div class="timeline-item active">
                                 <div class="timeline-date" id="timeDate3">In Progress</div>
                                 <div class="timeline-title">Allocation Engine Matching</div>
-                                <div class="timeline-desc" id="timeDesc3">Matching available room inventory.</div>
+                                <div class="timeline-desc" id="timeDesc3">Matching available room inventory.
+                                    <div class="probability-card" id="allotmentProbabilityCard">
+                                        <div class="probability-head">
+                                            <div>
+                                                <div class="timeline-title">Allotment Probability</div>
+                                                <div class="timeline-desc" id="probabilityBasis">Based on priority and applicant queue position.</div>
+                                            </div>
+                                            <div class="probability-percent" id="probabilityPercent">0%</div>
+                                        </div>
+                                        <div class="probability-bar"><div class="probability-fill" id="probabilityFill"></div></div>
+                                        <div class="probability-meta">
+                                            <span><strong id="probabilityRank">0</strong>Queue rank</span>
+                                            <span><strong id="probabilityPriority">0</strong>Priority</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                             <div class="timeline-item" id="timeItem4">
                                 <div class="timeline-date" id="timeDate4">Pending</div>
@@ -899,6 +963,7 @@
     <div id="toast">Message here</div>
 
     <script src="api.js"></script>
+    <script src="chatbot.js"></script>
     <script>
         // DOM Elements
         const loginState = document.getElementById('login-state');
@@ -948,6 +1013,7 @@
                     showToast('Login successful', 'success');
                     
                     loadNotices();
+                    if (window.HostelChatbot) window.HostelChatbot.init(statusData);
                 } catch(e) {
                     console.error(e);
                     showToast('Login failed. Please check your credentials.', 'error');
@@ -973,7 +1039,7 @@
             if (document.getElementById('overviewPriority')) document.getElementById('overviewPriority').textContent = `Priority ${priority} (${app.Category || 'Delhi'})`;
             if (document.getElementById('overviewDate')) document.getElementById('overviewDate').textContent = app.Timestamp ? new Date(app.Timestamp).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }) : '15 Aug 2026';
 
-            if (document.getElementById('overviewHostel')) document.getElementById('overviewHostel').textContent = statusData.allocatedHostel || alloc.HostelName || (app.HostelPref ? app.HostelPref + ' (Preferred)' : 'East Delhi Campus Hostel');
+            if (document.getElementById('overviewHostel')) document.getElementById('overviewHostel').textContent = statusData.allocatedHostel || alloc.HostelName || 'East Delhi Campus Hostel';
             if (document.getElementById('overviewRoom')) document.getElementById('overviewRoom').textContent = statusData.allocatedRoom || alloc.RoomNumber || 'Pending Allocation';
             if (document.getElementById('overviewFloor')) document.getElementById('overviewFloor').textContent = alloc.Floor ? alloc.Floor + ' Floor' : 'TBD';
             if (document.getElementById('overviewRoommate')) document.getElementById('overviewRoommate').textContent = app.RoommatePreference || 'Auto-Assigned';
@@ -991,6 +1057,7 @@
             if (document.getElementById('appPwd')) document.getElementById('appPwd').textContent = app.PWD || 'No';
 
             // Timeline Updates
+            updateAllotmentProbability(statusData, status);
             if (document.getElementById('timeDesc4')) {
                 if (status === 'Allocated') {
                     document.getElementById('timeDesc4').textContent = `Room ${statusData.allocatedRoom || alloc.RoomNumber} Allocated in ${statusData.allocatedHostel || alloc.HostelName}.`;
@@ -1010,6 +1077,28 @@
             if (document.getElementById('letterHostelVal')) document.getElementById('letterHostelVal').textContent = statusData.allocatedHostel || alloc.HostelName || 'East Delhi Campus Hostel';
             if (document.getElementById('letterRoomVal')) document.getElementById('letterRoomVal').textContent = statusData.allocatedRoom || alloc.RoomNumber || 'Under Processing';
             if (document.getElementById('letterDate')) document.getElementById('letterDate').textContent = `Date: ${new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })}`;
+        }
+
+        function updateAllotmentProbability(statusData, status) {
+            const card = document.getElementById('allotmentProbabilityCard');
+            if (!card) return;
+
+            const isAllocated = String(status || '').toLowerCase() === 'allocated';
+            const probability = statusData.allotmentProbability;
+            if (isAllocated || !probability) {
+                card.classList.remove('visible');
+                card.style.display = 'none';
+                return;
+            }
+
+            const percent = Math.max(0, Math.min(100, Number(probability.percent) || 0));
+            card.style.display = 'block';
+            card.classList.add('visible');
+            if (document.getElementById('probabilityPercent')) document.getElementById('probabilityPercent').textContent = `${percent}%`;
+            if (document.getElementById('probabilityFill')) document.getElementById('probabilityFill').style.width = `${percent}%`;
+            if (document.getElementById('probabilityRank')) document.getElementById('probabilityRank').textContent = probability.queueRank ?? '-';
+            if (document.getElementById('probabilityPriority')) document.getElementById('probabilityPriority').textContent = probability.priority ?? '-';
+            if (document.getElementById('probabilityBasis')) document.getElementById('probabilityBasis').textContent = probability.basis || 'Based on priority and applicant queue position.';
         }
 
         function downloadApplicationPDF() {
@@ -1179,6 +1268,7 @@
             loginState.classList.remove('hidden');
             loginForm.reset();
             switchTab('overview'); // reset to first tab
+            if (window.HostelChatbot) window.HostelChatbot.reset();
         });
 
         // Tab Navigation
@@ -1199,6 +1289,7 @@
                 }
             });
         }
+        window.switchTab = switchTab;
 
         tabBtns.forEach(btn => {
             btn.addEventListener('click', () => {

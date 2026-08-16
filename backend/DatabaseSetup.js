@@ -11,7 +11,7 @@ function setupDatabase() {
   const sheetsConfig = [
     {
       name: 'Students',
-      headers: ['ApplicationID', 'EnrollmentNo', 'Name', 'Gender', 'DOB', 'Email', 'Phone', 'Aadhaar', 'Programme', 'Branch', 'Year', 'TwelfthMarks', 'Category', 'State', 'ParentsTransferred', 'DistanceKm', 'PWD', 'HostelPref', 'RoommatePreference', 'Status', 'Priority', 'Timestamp']
+      headers: ['ApplicationID', 'EnrollmentNo', 'Name', 'Gender', 'DOB', 'Email', 'Phone', 'Aadhaar', 'Programme', 'Branch', 'Year', 'TwelfthMarks', 'Category', 'State', 'ParentsTransferred', 'DistanceKm', 'PWD', 'HostelPref', 'RoommatePreference', 'Status', 'Priority', 'Timestamp', 'AadhaarFile', 'PhotoFile', 'MarksheetFile', 'PwdCertificateFile', 'AadhaarStatus', 'PhotoStatus', 'MarksheetStatus', 'PwdCertificateStatus', 'AadhaarRemarks', 'PhotoRemarks', 'MarksheetRemarks', 'PwdCertificateRemarks', 'DocumentStatus', 'DocumentRemarks', 'DiscrepancyEmailSentAt']
     },
     {
       name: 'Rooms',

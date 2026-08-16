@@ -170,6 +170,133 @@ function sendWaitlistNotification(studentData, position) {
   } catch(e) {}
 }
 
+function sendDiscrepancyEmail(data) {
+  const targetEnroll = String(data.EnrollmentNo || data.enrollmentNo || '').trim();
+  const targetAppId = String(data.ApplicationID || data.applicationId || '').trim();
+  const students = getAllStudents();
+  const student = students.find(s => {
+    const enroll = String(getStudentValue(s, 'EnrollmentNo')).trim();
+    const appId = String(getStudentValue(s, 'ApplicationID')).trim();
+    return (targetEnroll && enroll === targetEnroll) || (targetAppId && appId === targetAppId);
+  });
+
+  if (!student) return { success: false, error: 'Student not found.' };
+
+  const status = String(getStudentValue(student, 'Status') || '').toLowerCase();
+  if (status === 'allocated') {
+    return { success: false, error: 'Discrepancy email is blocked because this student is already allocated.' };
+  }
+
+  const documentStatus = String(getStudentValue(student, 'DocumentStatus') || '').toLowerCase();
+  if (documentStatus !== 'discrepancy') {
+    return { success: false, error: 'Document status is not Discrepancy.' };
+  }
+
+  const email = String(getStudentValue(student, 'Email') || '').trim();
+  if (!email) return { success: false, error: 'No email address found for this student.' };
+
+  const name = getStudentValue(student, 'Name') || 'Student';
+  const enroll = getStudentValue(student, 'EnrollmentNo') || targetEnroll;
+  const applicationId = getStudentValue(student, 'ApplicationID') || targetAppId;
+  const overallRemarks = getStudentValue(student, 'DocumentRemarks') || 'Please review and resubmit the required documents.';
+  const docs = [
+    { label: 'Aadhaar Document', status: getStudentValue(student, 'AadhaarStatus'), remarks: getStudentValue(student, 'AadhaarRemarks') },
+    { label: 'Profile Photo', status: getStudentValue(student, 'PhotoStatus'), remarks: getStudentValue(student, 'PhotoRemarks') },
+    { label: '12th Marksheet', status: getStudentValue(student, 'MarksheetStatus'), remarks: getStudentValue(student, 'MarksheetRemarks') },
+    { label: 'PWD Certificate', status: getStudentValue(student, 'PwdCertificateStatus'), remarks: getStudentValue(student, 'PwdCertificateRemarks') }
+  ].filter(d => {
+    const s = String(d.status || '').toLowerCase();
+    return s === 'discrepancy' || s === 'missing';
+  });
+
+  const issueRows = docs.length ? docs.map(d => `
+    <tr>
+      <td style="border:1px solid #cbd5e1;padding:10px;font-weight:600;">${d.label}</td>
+      <td style="border:1px solid #cbd5e1;padding:10px;color:#b42318;">${d.status || 'Discrepancy'}</td>
+      <td style="border:1px solid #cbd5e1;padding:10px;">${d.remarks || 'Please upload a valid document.'}</td>
+    </tr>
+  `).join('') : `
+    <tr><td colspan="3" style="border:1px solid #cbd5e1;padding:10px;">Please review the remarks below.</td></tr>
+  `;
+
+  const subject = `Document Discrepancy - Hostel Application ${applicationId}`;
+  const plainText = `Dear ${name},\n\nWe found a discrepancy in your hostel application documents.\n\nApplication ID: ${applicationId}\nEnrollment No: ${enroll}\n\nRemarks: ${overallRemarks}\n\nPlease contact the hostel administration or resubmit corrected documents as instructed.\n\nRegards,\nGGSIPU Hostel Administration`;
+  const htmlBody = `
+    <div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto;border:1px solid #2B3467;border-radius:8px;overflow:hidden;">
+      <div style="background:#2B3467;color:#fff;padding:20px;text-align:center;">
+        <h2 style="margin:0;font-size:20px;">GGSIPU Hostel Administration</h2>
+        <p style="margin:6px 0 0;font-size:13px;opacity:.9;">Document Verification Update</p>
+      </div>
+      <div style="padding:24px;color:#1f2937;font-size:14px;line-height:1.6;">
+        <p>Dear <strong>${name}</strong>,</p>
+        <p>Your hostel application documents require correction before further processing.</p>
+        <p><strong>Application ID:</strong> ${applicationId}<br><strong>Enrollment No:</strong> ${enroll}</p>
+        <table style="width:100%;border-collapse:collapse;margin:18px 0;">
+          <thead>
+            <tr style="background:#f8fafc;">
+              <th style="border:1px solid #cbd5e1;padding:10px;text-align:left;">Document</th>
+              <th style="border:1px solid #cbd5e1;padding:10px;text-align:left;">Status</th>
+              <th style="border:1px solid #cbd5e1;padding:10px;text-align:left;">Remarks</th>
+            </tr>
+          </thead>
+          <tbody>${issueRows}</tbody>
+        </table>
+        <p><strong>Overall remarks:</strong> ${overallRemarks}</p>
+        <p>Please contact the hostel administration or resubmit corrected documents as instructed.</p>
+        <p style="margin-top:28px;">Regards,<br><strong>GGSIPU Hostel Administration</strong></p>
+      </div>
+    </div>
+  `;
+
+  try {
+    if (typeof MailApp !== 'undefined') {
+      MailApp.sendEmail({ to: email, subject, body: plainText, htmlBody, name: 'GGSIPU Hostel Administration' });
+    } else {
+      GmailApp.sendEmail(email, subject, plainText, { htmlBody, name: 'GGSIPU Hostel Administration' });
+    }
+
+    const sheet = getSheet('Students');
+    const columnMap = ensureStudentDocumentColumns();
+    const rows = sheet.getDataRange().getValues();
+    for (let i = 1; i < rows.length; i++) {
+      const rowEnroll = String(rows[i][1] || '').trim();
+      const rowAppId = String(rows[i][0] || '').trim();
+      if ((targetEnroll && rowEnroll === targetEnroll) || (targetAppId && rowAppId === targetAppId)) {
+        if (columnMap.DiscrepancyEmailSentAt) sheet.getRange(i + 1, columnMap.DiscrepancyEmailSentAt).setValue(new Date());
+        break;
+      }
+    }
+
+    return { success: true, sent: 1, message: `Discrepancy email sent to ${name}.` };
+  } catch (err) {
+    Logger.log('Discrepancy email error for ' + email + ': ' + err);
+    return { success: false, error: err.message };
+  }
+}
+
+function sendDiscrepancyEmails() {
+  const students = getAllStudents();
+  let sent = 0;
+  const errors = [];
+
+  students.forEach(student => {
+    const status = String(getStudentValue(student, 'Status') || '').toLowerCase();
+    const documentStatus = String(getStudentValue(student, 'DocumentStatus') || '').toLowerCase();
+    if (status !== 'allocated' && documentStatus === 'discrepancy') {
+      const result = sendDiscrepancyEmail({ ApplicationID: getStudentValue(student, 'ApplicationID') });
+      if (result && result.success) sent += 1;
+      else errors.push(result && result.error ? result.error : 'Unknown email error');
+    }
+  });
+
+  return {
+    success: sent > 0 || errors.length === 0,
+    sent,
+    message: sent > 0 ? `Sent ${sent} discrepancy email(s).` : 'No eligible discrepancy emails to send.',
+    errors
+  };
+}
+
 function sendGrievanceAcknowledgement(grievanceData) {
   if (!grievanceData.StudentEmail) return;
   const subject = `Grievance Received - Ticket ${grievanceData.TicketID}`;

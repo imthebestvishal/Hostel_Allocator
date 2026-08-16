@@ -514,6 +514,12 @@
                         </div>
 
                         <div class="form-group full-width">
+                            <label for="aadhaarDoc" class="required">Aadhaar Document</label>
+                            <input type="file" id="aadhaarDoc" name="aadhaarDoc" accept="application/pdf,image/*" required>
+                            <div class="error-message">Upload Aadhaar document</div>
+                        </div>
+
+                        <div class="form-group full-width">
                             <label for="photo">Profile Photo</label>
                             <input type="file" id="photo" name="photo" accept="image/*">
                         </div>
@@ -628,13 +634,7 @@
                             <input type="file" id="pwdDoc" name="pwdDoc" accept="application/pdf,image/*">
                         </div>
 
-                        <div class="form-group">
-                            <label class="required">Hostel Preference</label>
-                            <div class="radio-group">
-                                <label class="radio-label"><input type="radio" name="hostelPref" id="prefBoys" value="Boys Hostel" required> Boys Hostel</label>
-                                <label class="radio-label"><input type="radio" name="hostelPref" id="prefGirls" value="Girls Hostel"> Girls Hostel</label>
-                            </div>
-                        </div>
+
 
                         <div class="form-group">
                             <label for="roommate">Roommate Preference (Optional)</label>
@@ -793,16 +793,6 @@
             }
         }
 
-        // Auto-set hostel preference based on gender
-        document.querySelectorAll('input[name="gender"]').forEach(radio => {
-            radio.addEventListener('change', (e) => {
-                if (e.target.value === 'Male') {
-                    document.getElementById('prefBoys').checked = true;
-                } else {
-                    document.getElementById('prefGirls').checked = true;
-                }
-            });
-        });
 
         function populateReview() {
             const reviewDiv = document.getElementById('reviewContent');
@@ -835,8 +825,7 @@
                     fields: [
                         { label: 'Domicile', name: 'domicile', type: 'radio' },
                         { label: 'Distance (KM)', id: 'distance' },
-                        { label: 'PWD Status', name: 'pwd', type: 'radio' },
-                        { label: 'Hostel Pref.', name: 'hostelPref', type: 'radio' }
+                        { label: 'PWD Status', name: 'pwd', type: 'radio' }
                     ]
                 }
             ];
@@ -866,12 +855,39 @@
             reviewDiv.innerHTML = html;
         }
 
+        function fileToPayload(inputId) {
+            const input = document.getElementById(inputId);
+            const file = input && input.files ? input.files[0] : null;
+            if (!file) return Promise.resolve(null);
+
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const result = String(reader.result || '');
+                    resolve({
+                        name: file.name,
+                        type: file.type || 'application/octet-stream',
+                        data: result.includes(',') ? result.split(',')[1] : result
+                    });
+                };
+                reader.onerror = () => reject(reader.error || new Error('Could not read file.'));
+                reader.readAsDataURL(file);
+            });
+        }
+
         async function submitForm() {
             const btn = document.getElementById('nextBtn');
             btn.innerText = 'Submitting...';
             btn.disabled = true;
             
             try {
+                const [aadhaarDoc, photoDoc, marksheetDoc, pwdDoc] = await Promise.all([
+                    fileToPayload('aadhaarDoc'),
+                    fileToPayload('photo'),
+                    fileToPayload('marksheet'),
+                    fileToPayload('pwdDoc')
+                ]);
+
                 const formData = {
                     Name: document.getElementById('fullName')?.value || '',
                     DOB: document.getElementById('dob')?.value || '',
@@ -889,15 +905,27 @@
                     ParentsTransferred: document.querySelector('input[name="govtEmp"]:checked')?.value || 'No',
                     DistanceKm: parseFloat(document.getElementById('distance')?.value || 0),
                     PWD: document.querySelector('input[name="pwd"]:checked')?.value || 'No',
-                    HostelPref: document.querySelector('input[name="hostelPref"]:checked')?.value || '',
-                    RoommatePreference: document.getElementById('roommatePref')?.value || ''
+                    HostelPref: (document.querySelector('input[name="gender"]:checked')?.value === 'Female') ? 'Girls Hostel' : 'Boys Hostel',
+                    RoommatePreference: document.getElementById('roommate')?.value || '',
+                    documents: {
+                        aadhaar: aadhaarDoc,
+                        photo: photoDoc,
+                        marksheet: marksheetDoc,
+                        pwdCertificate: pwdDoc
+                    }
                 };
                 const res = await HostelAPI.submitApplication(formData);
+                if (res && res.error) {
+                    throw new Error(res.error);
+                }
+                if (res && res.success === false) {
+                    throw new Error(res.message || 'Server failed to save application.');
+                }
                 document.getElementById('appIdDisplay').innerText = res.applicationId || 'Submitted';
                 document.getElementById('successModal').classList.add('active');
             } catch(e) {
                 console.error(e);
-                alert('Failed to submit application. Please try again.');
+                alert('Failed to submit application: ' + e.message);
                 btn.innerText = 'Submit Application';
                 btn.disabled = false;
             }

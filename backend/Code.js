@@ -49,6 +49,9 @@ function doPost(e) {
       case 'fileGrievance':     result = fileGrievance(body.data); break;
       case 'postNotice':        result = postNotice(body.data); break;
       case 'updateRoomStatus':  result = updateRoomStatus(body.data); break;
+      case 'updateDocumentVerification': result = updateDocumentVerification(body.data); break;
+      case 'sendDiscrepancyEmail': result = sendDiscrepancyEmail(body.data); break;
+      case 'sendDiscrepancyEmails': result = sendDiscrepancyEmails(body.data); break;
       case 'resolveGrievance':  result = resolveGrievance(body.data); break;
       case 'adminLogin':        result = adminLogin(body.data); break;
       default: result = { error: 'Unknown action' };
@@ -63,4 +66,8 @@ function buildResponse(data, code = 200) {
   const output = ContentService.createTextOutput(JSON.stringify(data));
   output.setMimeType(ContentService.MimeType.JSON);
   return output;
+}
+function triggerAuth() {
+  DriveApp.getRootFolder();
+  Logger.log("Drive authorized!");
 }

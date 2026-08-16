@@ -1,16 +1,5 @@
-function getStudentValue(obj, keyName) {
-  if (!obj) return '';
-  const targetKey = keyName.toLowerCase().replace(/[^a-z0-9]/g, '');
-  for (let k in obj) {
-    const cleanK = k.toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (cleanK === targetKey) {
-      return obj[k];
-    }
-  }
-  return '';
-}
-
 function getSheetData(sheetName) {
+  if (sheetName === 'Students') ensureStudentDocumentColumns();
   const sheet = getSheet(sheetName);
   if (!sheet) return [];
   const range = sheet.getDataRange();
@@ -18,7 +7,7 @@ function getSheetData(sheetName) {
   const rawValues = range.getValues();
   if (displayValues.length <= 1) return [];
   
-  const headers = displayValues[0].map(h => String(h).trim());
+  const headers = displayValues[0];
   let results = [];
   
   for (let r = 1; r < displayValues.length; r++) {
@@ -27,17 +16,12 @@ function getSheetData(sheetName) {
     
     let hasData = rowDisplay.some(cell => String(cell).trim() !== '');
     if (!hasData) continue;
-    
     let obj = {};
     headers.forEach((header, c) => {
       if (header) {
         let val = rowDisplay[c];
         if (typeof rowRaw[c] === 'number') {
-          if (String(rowRaw[c]).length > 8) {
-            val = String(rowDisplay[c]).trim();
-          } else {
-            val = rowRaw[c];
-          }
+          val = rowRaw[c];
         } else if (typeof rowRaw[c] === 'boolean') {
           val = rowRaw[c];
         }
@@ -47,6 +31,55 @@ function getSheetData(sheetName) {
     results.push(obj);
   }
   return results;
+}
+
+const STUDENT_DOCUMENT_COLUMNS = [
+  'AadhaarFile',
+  'PhotoFile',
+  'MarksheetFile',
+  'PwdCertificateFile',
+  'AadhaarStatus',
+  'PhotoStatus',
+  'MarksheetStatus',
+  'PwdCertificateStatus',
+  'AadhaarRemarks',
+  'PhotoRemarks',
+  'MarksheetRemarks',
+  'PwdCertificateRemarks',
+  'DocumentStatus',
+  'DocumentRemarks',
+  'DiscrepancyEmailSentAt'
+];
+
+function ensureStudentDocumentColumns() {
+  const sheet = getSheet('Students');
+  if (!sheet) return {};
+  const lastColumn = Math.max(sheet.getLastColumn(), 1);
+  const headers = sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0];
+  let changed = false;
+
+  STUDENT_DOCUMENT_COLUMNS.forEach(header => {
+    if (!headers.includes(header)) {
+      headers.push(header);
+      changed = true;
+    }
+  });
+
+  if (changed) {
+    const maxColumns = sheet.getMaxColumns();
+    const diff = headers.length - maxColumns;
+    if (diff > 0) {
+      sheet.insertColumnsAfter(maxColumns, diff);
+    }
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    if (typeof formatHeaderRow === 'function') formatHeaderRow(sheet);
+  }
+
+  const map = {};
+  headers.forEach((header, index) => {
+    if (header) map[header] = index + 1;
+  });
+  return map;
 }
 
 function calculatePriority(data) {
@@ -85,11 +118,35 @@ function normalizeDateStr(val) {
   return str;
 }
 
+function uploadStudentDocument(fileData, applicationId, label) {
+  if (!fileData) return '';
+  if (typeof fileData === 'string') return fileData;
+
+  const base64 = fileData.data || fileData.base64 || '';
+  if (!base64) return '';
+
+  const mimeType = fileData.type || fileData.mimeType || 'application/octet-stream';
+  const originalName = fileData.name || `${label || 'Document'}.bin`;
+  const safeAppId = String(applicationId || 'APPLICATION').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const safeLabel = String(label || 'Document').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const fileName = `${safeAppId}_${safeLabel}_${originalName}`.replace(/[\\/:*?"<>|]/g, '_');
+
+  const decoded = Utilities.base64Decode(base64);
+  const blob = Utilities.newBlob(decoded, mimeType, fileName);
+  const folderName = 'GGSIPU Hostel Application Documents';
+  const folders = DriveApp.getFoldersByName(folderName);
+  const folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
+  const file = folder.createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  return file.getUrl();
+}
+
 function submitApplication(data) {
   const sheet = getSheet('Students');
+  const columnMap = ensureStudentDocumentColumns();
   const applicationId = 'GGSIPU-' + new Date().getFullYear() + '-' + Utilities.getUuid().substring(0, 5).toUpperCase();
   
-  const enroll = String(data.EnrollmentNo || data.rollNo || '').trim();
+  const enroll = data.EnrollmentNo || data.rollNo || '';
   const name = data.Name || data.name || '';
   const dob = normalizeDateStr(data.DOB || data.dob || '');
   const gender = data.Gender || data.gender || '';
@@ -111,12 +168,44 @@ function submitApplication(data) {
   const normalizedData = { PWD: pwd, Category: category, ParentsTransferred: parentsTransferred };
   const priority = calculatePriority(normalizedData);
   const timestamp = new Date();
-  
-  sheet.appendRow([
+  const documents = data.documents || {};
+  const aadhaarFile = uploadStudentDocument(data.AadhaarFile || data.aadhaarFile || documents.aadhaar, applicationId, 'Aadhaar');
+  const photoFile = uploadStudentDocument(data.PhotoFile || data.photoFile || documents.photo, applicationId, 'Photo');
+  const marksheetFile = uploadStudentDocument(data.MarksheetFile || data.marksheetFile || documents.marksheet, applicationId, 'Marksheet');
+  const pwdCertificateFile = pwd === 'Yes'
+    ? uploadStudentDocument(data.PwdCertificateFile || data.pwdCertificateFile || documents.pwdCertificate, applicationId, 'PwdCertificate')
+    : 'Not Applicable';
+
+  const row = [
     applicationId, enroll, name, gender, dob, email, phone, aadhaar,
     programme, branch, year, twelfthMarks, category, state, parentsTransferred,
     distanceKm, pwd, hostelPref, roommatePref, 'Pending', priority, timestamp
-  ]);
+  ];
+
+  const docDefaults = {
+    AadhaarFile: aadhaarFile,
+    PhotoFile: photoFile,
+    MarksheetFile: marksheetFile,
+    PwdCertificateFile: pwdCertificateFile,
+    AadhaarStatus: aadhaarFile ? 'Pending' : 'Missing',
+    PhotoStatus: photoFile ? 'Pending' : 'Missing',
+    MarksheetStatus: marksheetFile ? 'Pending' : 'Missing',
+    PwdCertificateStatus: pwd === 'Yes' ? (pwdCertificateFile ? 'Pending' : 'Missing') : 'Not Applicable',
+    AadhaarRemarks: '',
+    PhotoRemarks: '',
+    MarksheetRemarks: '',
+    PwdCertificateRemarks: '',
+    DocumentStatus: 'Pending',
+    DocumentRemarks: '',
+    DiscrepancyEmailSentAt: ''
+  };
+
+  Object.keys(docDefaults).forEach(key => {
+    const col = columnMap[key];
+    if (col) row[col - 1] = docDefaults[key];
+  });
+
+  sheet.appendRow(row);
   
   try {
     sendApplicationConfirmation({ Name: name, Email: email, EnrollmentNo: enroll }, applicationId);
@@ -132,51 +221,111 @@ function getAllStudents() {
 
 function getStudentStatus(enrollmentNo, dob) {
   const students = getAllStudents();
-  const targetEnroll = String(enrollmentNo || '').trim();
+  const targetEnroll = String(enrollmentNo || '').trim().toLowerCase();
   const targetDob = normalizeDateStr(dob);
   
   const student = students.find(s => {
-    const sEnroll = String(getStudentValue(s, 'EnrollmentNo') || getStudentValue(s, 'rollNo') || '').trim();
-    const sDob = normalizeDateStr(getStudentValue(s, 'DOB') || getStudentValue(s, 'dateofbirth'));
-    
-    const enrollMatch = (sEnroll === targetEnroll);
-    const dobMatch = (!targetDob || !sDob || sDob === targetDob);
-    
-    return enrollMatch && dobMatch;
+    const sEnroll = String(s.EnrollmentNo || s.rollNo || '').trim().toLowerCase();
+    return sEnroll === targetEnroll;
   });
   
   if (!student) {
-    return { error: 'Student not found. Checked Enrollment: ' + targetEnroll };
+    return { error: `Student with Enrollment No "${enrollmentNo}" not found. Please submit your application first.` };
   }
   
-  const studentName = getStudentValue(student, 'Name') || 'Student';
-  const appStatus = getStudentValue(student, 'Status') || 'Pending';
+  const sDob = normalizeDateStr(student.DOB || student.dob);
+  if (targetDob && sDob && targetDob !== sDob) {
+    return { error: 'Incorrect Date of Birth entered for this Enrollment No. Please check your DOB.' };
+  }
+  
+  const studentName = student.Name || student.name || 'Student';
   
   let result = { 
     success: true,
     name: studentName,
-    enrollmentNo: getStudentValue(student, 'EnrollmentNo'),
-    applicationId: getStudentValue(student, 'ApplicationID'),
-    status: appStatus,
-    priority: getStudentValue(student, 'Priority'),
+    enrollmentNo: student.EnrollmentNo,
+    applicationId: student.ApplicationID,
+    status: student.Status || 'Pending',
+    priority: student.Priority,
     applicationDetails: student
   };
   
-  if (appStatus === 'Allocated') {
+  if (student.Status === 'Allocated') {
     const allocations = getAllAllocations();
-    const alloc = allocations.find(a => String(getStudentValue(a, 'EnrollmentNo')).trim() === targetEnroll);
+    const alloc = allocations.find(a => String(a.EnrollmentNo).trim() === targetEnroll);
     if (alloc) {
       result.allocation = alloc;
-      result.allocatedRoom = getStudentValue(alloc, 'RoomNumber');
-      result.allocatedHostel = getStudentValue(alloc, 'HostelName');
+      result.allocatedRoom = alloc.RoomNumber;
+      result.allocatedHostel = alloc.HostelName;
     }
-  } else if (appStatus === 'Waitlisted') {
+  } else if (student.Status === 'Waitlisted') {
     const waitlist = getSheetData('WaitingList');
-    const entry = waitlist.find(w => String(getStudentValue(w, 'EnrollmentNo')).trim() === targetEnroll);
-    if (entry) result.waitlistPosition = getStudentValue(entry, 'Position');
+    const entry = waitlist.find(w => String(w.EnrollmentNo).trim() === targetEnroll);
+    if (entry) result.waitlistPosition = entry.Position;
+  }
+  
+  if (String(student.Status || '').toLowerCase() !== 'allocated') {
+    result.allotmentProbability = calculateAllotmentProbability(student);
   }
   
   return result;
+}
+
+function calculateAllotmentProbability(student) {
+  const status = String(getStudentValue(student, 'Status')).toLowerCase();
+  if (status === 'allocated') return null;
+
+  const gender = String(getStudentValue(student, 'Gender')).toLowerCase();
+  const targetEnroll = String(getStudentValue(student, 'EnrollmentNo')).trim();
+
+  const sameGenderApplicants = getAllStudents().filter(s => {
+    const sStatus = String(getStudentValue(s, 'Status')).toLowerCase();
+    if (sStatus === 'allocated') return false;
+    const sGender = String(getStudentValue(s, 'Gender')).toLowerCase();
+    if (gender.includes('female') || gender.includes('girl') || gender === 'f') {
+      return sGender.includes('female') || sGender.includes('girl') || sGender === 'f';
+    }
+    return sGender.includes('male') || sGender.includes('boy') || sGender === 'm';
+  });
+
+  sameGenderApplicants.sort((a, b) => {
+    const aPriority = parseInt(getStudentValue(a, 'Priority'), 10) || 5;
+    const bPriority = parseInt(getStudentValue(b, 'Priority'), 10) || 5;
+    if (aPriority !== bPriority) return aPriority - bPriority;
+    if (aPriority === 2 || aPriority === 3) return (parseFloat(getStudentValue(b, 'TwelfthMarks')) || 0) - (parseFloat(getStudentValue(a, 'TwelfthMarks')) || 0);
+    if (aPriority === 4) return (parseFloat(getStudentValue(b, 'DistanceKm')) || 0) - (parseFloat(getStudentValue(a, 'DistanceKm')) || 0);
+    return new Date(getStudentValue(a, 'Timestamp')) - new Date(getStudentValue(b, 'Timestamp'));
+  });
+
+  const rank = sameGenderApplicants.findIndex(s => String(getStudentValue(s, 'EnrollmentNo')).trim() === targetEnroll) + 1;
+  const effectiveRank = rank || sameGenderApplicants.length + 1;
+  const priority = parseInt(getStudentValue(student, 'Priority'), 10) || 5;
+  const marks = parseFloat(getStudentValue(student, 'TwelfthMarks')) || 75;
+  const dist = parseFloat(getStudentValue(student, 'DistanceKm')) || 20;
+
+  let base = 50;
+  if (priority === 1) {
+    base = 98;
+  } else if (priority === 2) {
+    base = 82 + Math.min(12, Math.max(0, (marks - 75) * 0.5));
+  } else if (priority === 3) {
+    base = 72 + Math.min(10, Math.max(0, (marks - 75) * 0.4));
+  } else if (priority === 4) {
+    base = 45 + Math.min(20, Math.max(0, (dist / 100) * 20));
+  } else {
+    base = 25 + Math.min(10, Math.max(0, (dist / 100) * 10));
+  }
+
+  const rankDeduction = (effectiveRank - 1) * 3;
+  let percent = Math.round(Math.max(10, Math.min(98, base - rankDeduction)));
+
+  return {
+    percent,
+    seatsLeft: 0,
+    queueRank: effectiveRank,
+    priority,
+    basis: `Priority ${priority}, queue rank #${effectiveRank}`
+  };
 }
 
 function getAllRooms() {
@@ -225,16 +374,11 @@ function saveAllocation(a) {
     a.RoomID, a.RoomNumber, a.HostelName, a.Floor, a.BedNumber, a.Status, a.LetterSent, a.LetterSentAt
   ]);
   
-  // Update student status in Students sheet
+  // Update student status
   const studentSheet = getSheet('Students');
   const students = studentSheet.getDataRange().getValues();
-  const targetEnroll = String(a.EnrollmentNo).trim();
-  const targetAppId = String(a.ApplicationID).trim();
-  
   for (let i = 1; i < students.length; i++) {
-    const rowAppId = String(students[i][0]).trim();
-    const rowEnroll = String(students[i][1]).trim();
-    if ((targetEnroll && rowEnroll === targetEnroll) || (targetAppId && rowAppId === targetAppId)) {
+    if (students[i][1] == a.EnrollmentNo) {
       studentSheet.getRange(i + 1, 20).setValue('Allocated'); // col 20 is Status
       break;
     }
@@ -281,47 +425,90 @@ function resolveGrievance(data) {
   return { error: 'Grievance not found' };
 }
 
+function updateDocumentVerification(data) {
+  const sheet = getSheet('Students');
+  const columnMap = ensureStudentDocumentColumns();
+  const rows = sheet.getDataRange().getValues();
+  const targetEnroll = String(data.EnrollmentNo || data.enrollmentNo || '').trim();
+  const targetAppId = String(data.ApplicationID || data.applicationId || '').trim();
+
+  for (let i = 1; i < rows.length; i++) {
+    const rowEnroll = String(rows[i][1] || '').trim();
+    const rowAppId = String(rows[i][0] || '').trim();
+    if ((targetEnroll && rowEnroll === targetEnroll) || (targetAppId && rowAppId === targetAppId)) {
+      const documents = data.documents || {};
+      const remarks = data.remarksByDocument || {};
+      const statusMap = {
+        AadhaarStatus: documents.aadhaar || data.AadhaarStatus,
+        PhotoStatus: documents.photo || data.PhotoStatus,
+        MarksheetStatus: documents.marksheet || data.MarksheetStatus,
+        PwdCertificateStatus: documents.pwdCertificate || data.PwdCertificateStatus,
+        AadhaarRemarks: remarks.aadhaar || data.AadhaarRemarks || '',
+        PhotoRemarks: remarks.photo || data.PhotoRemarks || '',
+        MarksheetRemarks: remarks.marksheet || data.MarksheetRemarks || '',
+        PwdCertificateRemarks: remarks.pwdCertificate || data.PwdCertificateRemarks || '',
+        DocumentStatus: data.DocumentStatus || data.documentStatus,
+        DocumentRemarks: data.DocumentRemarks || data.remarks || ''
+      };
+
+      Object.keys(statusMap).forEach(key => {
+        if (columnMap[key] && statusMap[key] !== undefined) {
+          sheet.getRange(i + 1, columnMap[key]).setValue(statusMap[key]);
+        }
+      });
+
+      return { success: true, message: 'Document verification updated.' };
+    }
+  }
+
+  return { success: false, error: 'Student not found.' };
+}
+
 function getDashboardData() {
   const students = getAllStudents();
-  const allocations = getAllAllocations();
   const totalApplied = students.length;
+  
+  const allocated = students.filter(s => {
+    const st = String(getStudentValue(s, 'Status')).toLowerCase();
+    return st === 'allocated';
+  }).length;
+  
+  const waitlisted = students.filter(s => {
+    const st = String(getStudentValue(s, 'Status')).toLowerCase();
+    return st === 'waitlisted';
+  }).length;
+  
+  const pending = students.filter(s => {
+    const st = String(getStudentValue(s, 'Status')).toLowerCase();
+    return st === 'pending' || st === '' || st === 'undefined';
+  }).length;
 
-  let allocatedBoys = 0;
-  let allocatedGirls = 0;
+  const allocatedBoys = students.filter(s => {
+    const st = String(getStudentValue(s, 'Status')).toLowerCase();
+    const g = String(getStudentValue(s, 'Gender')).toLowerCase();
+    return st === 'allocated' && ((g.includes('male') && !g.includes('female')) || g.includes('boy') || g === 'm');
+  }).length;
 
-  allocations.forEach(a => {
-    const gender = String(getStudentValue(a, 'Gender')).toLowerCase();
-    if (gender.includes('male') || gender.includes('boy') || gender === 'm') {
-      allocatedBoys++;
-    } else {
-      allocatedGirls++;
-    }
-  });
-
-  const allocated = allocations.length;
-  const waitlisted = getSheetData('WaitingList').length;
-  const pending = Math.max(0, totalApplied - (allocated + waitlisted));
+  const allocatedGirls = students.filter(s => {
+    const st = String(getStudentValue(s, 'Status')).toLowerCase();
+    const g = String(getStudentValue(s, 'Gender')).toLowerCase();
+    return st === 'allocated' && (g.includes('female') || g.includes('girl') || g === 'f');
+  }).length;
 
   const roomSummary = getRoomSummary();
-  if (roomSummary.boys) {
-    roomSummary.boys.occupied = allocatedBoys;
-    roomSummary.boys.vacant = Math.max(0, roomSummary.boys.total - allocatedBoys);
-  }
-  if (roomSummary.girls) {
-    roomSummary.girls.occupied = allocatedGirls;
-    roomSummary.girls.vacant = Math.max(0, roomSummary.girls.total - allocatedGirls);
-  }
-
+  
   let priorityBreakdown = [0, 0, 0, 0, 0];
   students.forEach(s => {
     const p = parseInt(getStudentValue(s, 'Priority'), 10);
     if (p >= 1 && p <= 5) priorityBreakdown[p - 1]++;
   });
-
+  
+  const allocations = getAllAllocations();
   const recentAllocations = allocations.slice(-5).reverse();
-
+  
   return {
-    totalApplied, allocated, allocatedBoys, allocatedGirls, waitlisted, pending,
+    totalApplied, allocated, waitlisted, pending,
+    allocatedBoys, allocatedGirls,
     boyStats: roomSummary.boys,
     girlStats: roomSummary.girls,
     priorityBreakdown,

@@ -1,0 +1,11 @@
+{
+  "name": "ggsipu-hostel-allocator",
+  "version": "1.0.0",
+  "description": "GGSIPU East Delhi Campus Hostel Allocation System",
+  "scripts": {
+    "start": "npx serve ."
+  },
+  "devDependencies": {
+    "serve": "^14.2.0"
+  }
+}

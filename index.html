@@ -8,7 +8,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=allocation-timeline">
+    
 </head>
 <body>
 <div class="site-wrapper">
@@ -50,7 +51,7 @@
         </button>
     </nav>
 
-    <!-- ============ SCROLL ANIMATION SECTION ============ -->
+    <!-- Scroll animation part -->
     <section class="scroll-hero" id="scrollHero">
         <!-- Sticky canvas that plays on scroll -->
         <div class="canvas-sticky">
@@ -99,7 +100,7 @@
     <section class="about-section" id="about">
         <div class="about-inner">
             <div class="about-image-wrap">
-                <img src="assets/sequence/00028.jpg" alt="GGSIPU East Delhi Campus" class="about-img">
+                <img src="assets/gallery/campus-aerial.jpg" alt="GGSIPU East Delhi Campus" class="about-img">
                 <div class="about-img-badge">
                     <span>Est. 2021</span>
                 </div>
@@ -139,32 +140,62 @@
                 <h2>How Seats Are Allocated</h2>
                 <p>Our algorithm follows university policy strictly — fair, automated, and transparent.</p>
             </div>
-            <div class="priority-grid">
-                <div class="priority-card priority-1">
-                    <div class="priority-num">I</div>
-                    <h3>Disabled / Handicapped</h3>
-                    <p>Top priority for all physically challenged or specially-abled students.</p>
+            <div class="priority-grid" aria-label="Hostel allocation priority order">
+                <div class="priority-item priority-1">
+                    <div class="priority-icon" aria-hidden="true">
+                        <svg width="33" height="33" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"/><path d="M4 9h16"/><path d="M12 6v7"/><path d="M8 21l4-8 4 8"/><path d="M8 13l-2 4"/><path d="M16 13l2 4"/></svg>
+                    </div>
+                    <div class="priority-card">
+                        <div class="priority-num">01</div>
+                        <h3>Disabled / Handicapped</h3>
+                        <p>Top priority for all physically challenged or specially-abled students.</p>
+                    </div>
                 </div>
-                <div class="priority-card priority-2">
-                    <div class="priority-num">II</div>
-                    <h3>Outside Delhi Category</h3>
-                    <p>Students from outside Delhi, ranked by 12th marks merit list.</p>
+                <div class="priority-item priority-2">
+                    <div class="priority-icon" aria-hidden="true">
+                        <svg width="33" height="33" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18"/><path d="M12 3a14 14 0 0 0 0 18"/></svg>
+                    </div>
+                    <div class="priority-card">
+                        <div class="priority-num">02</div>
+                        <h3>Outside Delhi Category</h3>
+                        <p>Students from outside Delhi, ranked by 12th marks merit list.</p>
+                    </div>
                 </div>
-                <div class="priority-card priority-3">
-                    <div class="priority-num">III</div>
-                    <h3>Delhi — Parents Transferred</h3>
-                    <p>Delhi students whose parents are posted outside Delhi (Govt./PSU).</p>
+                <div class="priority-item priority-3">
+                    <div class="priority-icon" aria-hidden="true">
+                        <svg width="33" height="33" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 19v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="3"/><path d="M19 8v6"/><path d="M16 11h6"/></svg>
+                    </div>
+                    <div class="priority-card">
+                        <div class="priority-num">03</div>
+                        <h3>Delhi — Parents Transferred</h3>
+                        <p>Delhi students whose parents are posted outside Delhi (Govt./PSU).</p>
+                    </div>
                 </div>
-                <div class="priority-card priority-4">
-                    <div class="priority-num">IV</div>
-                    <h3>Delhi — Distance Based</h3>
-                    <p>Remaining Delhi students, ranked by distance from East Delhi Campus.</p>
+                <div class="priority-item priority-4">
+                    <div class="priority-icon" aria-hidden="true">
+                        <svg width="33" height="33" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>
+                    </div>
+                    <div class="priority-card">
+                        <div class="priority-num">04</div>
+                        <h3>Delhi — Distance Based</h3>
+                        <p>Remaining Delhi students, ranked by distance from East Delhi Campus.</p>
+                    </div>
                 </div>
-                <div class="priority-card priority-5">
-                    <div class="priority-num">V</div>
-                    <h3>Waiting List</h3>
-                    <p>Students not allocated initially. Allotted as vacancies arise.</p>
+                <div class="priority-item priority-5">
+                    <div class="priority-icon" aria-hidden="true">
+                        <svg width="33" height="33" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg>
+                    </div>
+                    <div class="priority-card">
+                        <div class="priority-num">05</div>
+                        <h3>Waiting List</h3>
+                        <p>Students not allocated initially. Allotted as vacancies arise.</p>
+                    </div>
                 </div>
+            </div>
+            <div class="priority-proof">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-5"/></svg>
+                <strong>Fair. Transparent. Automated.</strong>
+                <span>Our commitment to every student.</span>
             </div>
         </div>
     </section>
