@@ -14,6 +14,7 @@ function runAllocationEngine() {
   const settingsSheet = getSheet('Settings');
   const settingsData = settingsSheet.getDataRange().getValues();
   let runningRow = -1;
+  let unverifiedPendingCount = 0;
   for(let i=1; i<settingsData.length; i++){
     if(settingsData[i][0] === 'ALLOCATION_RUNNING'){
       if(settingsData[i][1] === 'true' || settingsData[i][1] === true) {
@@ -29,9 +30,14 @@ function runAllocationEngine() {
 
   try {
     const allStudents = getAllStudents();
+    const existingAllocatedEnrollments = new Set(getAllAllocations().map(a => String(getStudentValue(a, 'EnrollmentNo')).trim().toLowerCase()));
+    const existingWaitlistedEnrollments = new Set(getSheetData('WaitingList').map(w => String(getStudentValue(w, 'EnrollmentNo')).trim().toLowerCase()));
     const totalPendingStudents = allStudents.filter(s => {
       const st = String(getStudentValue(s, 'Status')).toLowerCase();
-      return st === 'pending' || st === '' || st === 'undefined';
+      const enroll = String(getStudentValue(s, 'EnrollmentNo')).trim().toLowerCase();
+      return (st === 'pending' || st === '' || st === 'undefined') &&
+        !existingAllocatedEnrollments.has(enroll) &&
+        !existingWaitlistedEnrollments.has(enroll);
     });
 
     const pendingStudents = totalPendingStudents.filter(s => {
@@ -39,7 +45,7 @@ function runAllocationEngine() {
       return docStatus === 'verified';
     });
 
-    const unverifiedPendingCount = totalPendingStudents.length - pendingStudents.length;
+    unverifiedPendingCount = totalPendingStudents.length - pendingStudents.length;
 
     if (pendingStudents.length === 0) {
       if (unverifiedPendingCount > 0) {
@@ -112,8 +118,8 @@ function runAllocationEngine() {
   return { 
     success: true, 
     allocated: allocatedCount, 
-    waitlisted: waitlistedCount, 
-    message: `Allocation completed successfully! Allocated: ${allocatedCount}, Waitlisted: ${waitlistedCount}.${unverifiedPendingCount > 0 ? ' (Skipped ' + unverifiedPendingCount + ' pending student(s) due to unverified documents)' : ''}` 
+    waitlisted: waitlistedCount,
+    message: `Allocation completed successfully! Allocated: ${allocatedCount}, Waitlisted: ${waitlistedCount}.${unverifiedPendingCount > 0 ? ' (Skipped ' + unverifiedPendingCount + ' pending student(s) due to unverified documents)' : ''}`
   };
 }
 
@@ -122,10 +128,12 @@ function allocateGroup(students, rooms) {
   let waitlisted = 0;
 
   students.sort((a, b) => {
-    if (a.Priority !== b.Priority) return a.Priority - b.Priority;
-    if (a.Priority === 2 || a.Priority === 3) return b.TwelfthMarks - a.TwelfthMarks;
-    if (a.Priority === 4) return b.DistanceKm - a.DistanceKm;
-    return new Date(a.Timestamp) - new Date(b.Timestamp);
+    const aPriority = parseInt(getStudentValue(a, 'Priority'), 10) || 5;
+    const bPriority = parseInt(getStudentValue(b, 'Priority'), 10) || 5;
+    if (aPriority !== bPriority) return aPriority - bPriority;
+    if (aPriority === 2 || aPriority === 3) return (parseFloat(getStudentValue(b, 'TwelfthMarks')) || 0) - (parseFloat(getStudentValue(a, 'TwelfthMarks')) || 0);
+    if (aPriority === 4) return (parseFloat(getStudentValue(b, 'DistanceKm')) || 0) - (parseFloat(getStudentValue(a, 'DistanceKm')) || 0);
+    return new Date(getStudentValue(a, 'Timestamp')) - new Date(getStudentValue(b, 'Timestamp'));
   });
 
   const roomsMap = new Map();
@@ -139,12 +147,14 @@ function allocateGroup(students, rooms) {
   for (const student of students) {
     let assigned = false;
     for (const room of availableRooms) {
-      if (room.VacantBeds > 0) {
-        room.VacantBeds--;
-        room.Occupied++;
+      const vacantBeds = parseInt(getStudentValue(room, 'VacantBeds'), 10) || 0;
+      if (vacantBeds > 0) {
+        room.VacantBeds = vacantBeds - 1;
+        room.Occupied = (parseInt(getStudentValue(room, 'Occupied'), 10) || 0) + 1;
         
         const bedLetters = ['A', 'B', 'C', 'D', 'E'];
-        const bedNum = bedLetters[room.Capacity - room.VacantBeds - 1] || 'A';
+        const capacity = parseInt(getStudentValue(room, 'Capacity'), 10) || 1;
+        const bedNum = bedLetters[capacity - room.VacantBeds - 1] || 'A';
         
         const allocId = 'ALC-' + Utilities.getUuid().substring(0, 5).toUpperCase();
         const studentEnroll = getStudentValue(student, 'EnrollmentNo');
@@ -189,7 +199,7 @@ function allocateGroup(students, rooms) {
       const studentSheet = getSheet('Students');
       const studentsData = studentSheet.getDataRange().getValues();
       for (let i = 1; i < studentsData.length; i++) {
-        if (studentsData[i][1] == student.EnrollmentNo) {
+        if (String(studentsData[i][1]).trim() === String(studentEnroll).trim()) {
           studentSheet.getRange(i + 1, 20).setValue('Waitlisted'); // col 20 is Status
           break;
         }
@@ -204,4 +214,39 @@ function allocateGroup(students, rooms) {
 
 function promoteFromWaitlist() {
   // Can be called manually or via trigger when a room is marked vacant
+}
+
+function getAllocationPreview() {
+  const students = getAllStudents();
+  const rooms = getAllRooms();
+  const existingAllocatedEnrollments = new Set(getAllAllocations().map(a => String(getStudentValue(a, 'EnrollmentNo')).trim().toLowerCase()));
+  const existingWaitlistedEnrollments = new Set(getSheetData('WaitingList').map(w => String(getStudentValue(w, 'EnrollmentNo')).trim().toLowerCase()));
+
+  const pending = students.filter(s => {
+    const st = String(getStudentValue(s, 'Status')).toLowerCase();
+    const enroll = String(getStudentValue(s, 'EnrollmentNo')).trim().toLowerCase();
+    return (st === 'pending' || st === '' || st === 'undefined') &&
+      !existingAllocatedEnrollments.has(enroll) &&
+      !existingWaitlistedEnrollments.has(enroll);
+  });
+  const verifiedPending = pending.filter(s => String(getStudentValue(s, 'DocumentStatus')).toLowerCase() === 'verified');
+
+  let boysSeats = 0;
+  let girlsSeats = 0;
+  rooms.forEach(r => {
+    const st = String(getStudentValue(r, 'Status')).toLowerCase();
+    if (!(st === 'active' || st === 'available' || st === '')) return;
+    const seats = parseInt(getStudentValue(r, 'VacantBeds'), 10) || 0;
+    const type = String(getStudentValue(r, 'HostelType')).toLowerCase();
+    if (type.includes('boy')) boysSeats += seats;
+    if (type.includes('girl')) girlsSeats += seats;
+  });
+
+  return {
+    success: true,
+    verifiedPending: verifiedPending.length,
+    unverifiedPending: pending.length - verifiedPending.length,
+    availableBoysSeats: boysSeats,
+    availableGirlsSeats: girlsSeats
+  };
 }

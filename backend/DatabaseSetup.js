@@ -27,7 +27,7 @@ function setupDatabase() {
     },
     {
       name: 'Notices',
-      headers: ['NoticeID', 'Title', 'Body', 'PostedBy', 'PostedAt', 'Active']
+      headers: ['NoticeID', 'Title', 'Body', 'PostedBy', 'PostedAt', 'Active', 'Audience']
     },
     {
       name: 'Settings',
@@ -68,14 +68,22 @@ function seedData(ss) {
   }
 
   const settingsSheet = ss.getSheetByName('Settings');
-  if (settingsSheet.getLastRow() <= 1) {
-    const settings = [
-      ['ADMIN_PASSWORD', 'admin123', 'Password for admin login'],
-      ['ALLOCATION_RUNNING', 'false', 'Flag to prevent concurrent runs'],
-      ['LAST_ALLOCATION_DATE', '', 'Date of last allocation'],
-      ['SMTP_FROM_NAME', 'GGSIPU Hostel Administration', 'Sender name for emails']
-    ];
-    settingsSheet.getRange(2, 1, settings.length, settings[0].length).setValues(settings);
+  const settings = [
+    ['ADMIN_PASSWORD', 'admin123', 'Password for admin login'],
+    ['ALLOCATION_RUNNING', 'false', 'Flag to prevent concurrent runs'],
+    ['LAST_ALLOCATION_DATE', '', 'Date of last allocation'],
+    ['SMTP_FROM_NAME', 'GGSIPU Hostel Administration', 'Sender name for emails'],
+    ['REGISTRATION_OPEN', 'true', 'Whether hostel applications are currently accepted'],
+    ['REGISTRATION_CLOSE_DATE', '', 'Registration close date in YYYY-MM-DD format'],
+    ['HOSTEL_OFFICE_CONTACT', 'Contact the Warden Office for official hostel support.', 'Public hostel office contact/help text'],
+    ['MESS_FEE_NOTE', 'Mess and hostel fee details will be announced through official notices.', 'Public mess/fee note for students']
+  ];
+  const existingKeys = settingsSheet.getLastRow() > 1
+    ? settingsSheet.getRange(2, 1, settingsSheet.getLastRow() - 1, 1).getDisplayValues().flat()
+    : [];
+  const missing = settings.filter(row => !existingKeys.includes(row[0]));
+  if (missing.length) {
+    settingsSheet.getRange(settingsSheet.getLastRow() + 1, 1, missing.length, missing[0].length).setValues(missing);
   }
 }
 

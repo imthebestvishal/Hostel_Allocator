@@ -1,7 +1,337 @@
-// ── Google Apps Script Web App Configuration ─────────────────────────────
+
 const GAS_CONFIG = {
   URL: 'https://script.google.com/macros/s/AKfycbwwkz9T8iuNj35StYWCTZ59CtMtQ0RBvRugNoBkE7Czxkl45YpoUGOBkoEEW74ocATkiw/exec'
 };
+
+// ── Shared loading manager ────────────────────────────────────────────────
+const API_LOADING_LABELS = {
+  adminLogin: 'Checking credentials',
+  getDashboard: 'Refreshing dashboard',
+  getStudents: 'Loading students',
+  getRooms: 'Loading rooms',
+  getAllocations: 'Loading allocations',
+  getGrievances: 'Loading grievances',
+  getNotices: 'Loading notices',
+  getSettingsPublic: 'Loading settings',
+  getAllocationPreview: 'Checking allocation preview',
+  runAllocation: 'Running allocation',
+  sendLetters: 'Sending allotment letters',
+  postNotice: 'Posting notice',
+  resolveGrievance: 'Resolving grievance',
+  updateDocumentVerification: 'Saving verification',
+  sendDiscrepancyEmail: 'Sending discrepancy mail',
+  sendDiscrepancyEmails: 'Sending discrepancy mails',
+  updateSetting: 'Saving settings',
+  submitApplication: 'Submitting application',
+  getStudentStatus: 'Checking student status',
+  fileGrievance: 'Submitting grievance',
+  askChatbot: 'Checking assistant'
+};
+
+const APP_LOADING_LOTTIE_SRC = 'assets/animations/loading.lottie';
+
+function ensureAppLoading() {
+  if (window.AppLoading) return window.AppLoading;
+
+  let styleInjected = false;
+  let activeCount = 0;
+  let topBar = null;
+  let overlayEl = null;
+  const tasks = new Map();
+  const targetStates = new WeakMap();
+
+  function injectStyles() {
+    if (styleInjected) return;
+    styleInjected = true;
+    const style = document.createElement('style');
+    style.id = 'app-loading-styles';
+    style.textContent = `
+      :root {
+        --app-loader-primary: var(--c-primary, hsl(228,52%,29%));
+        --app-loader-accent: hsl(211, 92%, 48%);
+        --app-loader-border: var(--c-border, hsl(228,15%,88%));
+        --app-loader-surface: var(--c-surface, hsl(228,20%,97%));
+        --app-loader-muted: var(--c-muted, hsl(228,10%,50%));
+      }
+      .app-loading-bar {
+        position: fixed; top: 0; left: 0; right: 0; height: 2px;
+        z-index: 100000; opacity: 0; pointer-events: none;
+        background: linear-gradient(90deg, transparent, var(--app-loader-primary), var(--app-loader-accent), transparent);
+        background-size: 220% 100%;
+        transform: translateY(-2px);
+        transition: opacity .18s ease, transform .18s ease;
+      }
+      .app-loading-bar.active {
+        opacity: 1; transform: translateY(0);
+        animation: appLoadingSweep 1.05s ease-in-out infinite;
+      }
+      .app-loading-overlay {
+        position: fixed; inset: 0; z-index: 100000;
+        display: flex; align-items: center; justify-content: center;
+        padding: 24px; background: rgba(15, 23, 42, .34);
+        backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+        opacity: 0; pointer-events: none;
+        transition: opacity .18s ease;
+      }
+      .app-loading-overlay.active {
+        opacity: 1; pointer-events: auto;
+      }
+      .app-loading-panel {
+        width: min(280px, calc(100vw - 48px));
+        min-height: 190px;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 10px; padding: 24px 22px 22px;
+        border: 1px solid rgba(35,53,113,.12);
+        border-radius: 10px;
+        background: rgba(255,255,255,.96);
+        box-shadow: 0 24px 70px rgba(15,23,42,.24);
+        transform: translateY(8px) scale(.98);
+        transition: transform .18s ease;
+      }
+      .app-loading-overlay.active .app-loading-panel {
+        transform: translateY(0) scale(1);
+      }
+      .app-loading-lottie {
+        width: 96px; height: 96px; flex: 0 0 auto;
+        position: relative;
+        display: inline-flex; align-items: center; justify-content: center;
+      }
+      .app-loading-lottie dotlottie-wc {
+        position: absolute; inset: 0;
+        width: 96px; height: 96px;
+      }
+      .app-loading-lottie.has-player .app-loading-fallback { display: none; }
+      .app-loading-fallback {
+        width: 46px; height: 46px; border-radius: 50%;
+        border: 3px solid rgba(35,53,113,.14);
+        border-top-color: var(--app-loader-primary);
+        animation: appSpin .75s linear infinite;
+      }
+      .app-loading-title {
+        color: var(--app-loader-primary);
+        font: 800 14px/1.25 Inter, system-ui, sans-serif;
+        text-align: center;
+      }
+      .app-loading-subtitle {
+        color: var(--app-loader-muted);
+        font: 500 12px/1.45 Inter, system-ui, sans-serif;
+        text-align: center;
+      }
+      .app-mini-spinner, .loader {
+        width: 18px; height: 18px; border-radius: 50%;
+        border: 2px solid rgba(35,53,113,.16);
+        border-top-color: var(--app-loader-primary);
+        display: inline-block;
+        animation: appSpin .75s linear infinite;
+      }
+      .app-inline-loader {
+        display: inline-flex; align-items: center; justify-content: center;
+        gap: 8px; color: var(--app-loader-muted); font-size: .88rem; padding: 10px 12px;
+      }
+      .app-loading-target { position: relative; min-height: 42px; }
+      .app-loading-target::after {
+        content: attr(data-loading-label);
+        position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+        padding: 16px; color: var(--app-loader-muted); font-size: .88rem; font-weight: 600;
+        background: rgba(255,255,255,.78); backdrop-filter: blur(2px);
+        opacity: 0; pointer-events: none; transition: opacity .18s ease;
+      }
+      .app-loading-target.is-loading::after { opacity: 1; }
+      .app-skeleton {
+        display: block; min-height: 14px; border-radius: 5px;
+        background: linear-gradient(90deg, #edf1f7 0%, #f8fafc 45%, #edf1f7 90%);
+        background-size: 220% 100%;
+        animation: appSkeleton 1.15s ease-in-out infinite;
+      }
+      .app-skeleton-row {
+        height: 42px; border-radius: 6px; margin: 8px 0; border: 1px solid var(--app-loader-border);
+        background: linear-gradient(90deg, #edf1f7 0%, #f8fafc 45%, #edf1f7 90%);
+        background-size: 220% 100%;
+        animation: appSkeleton 1.15s ease-in-out infinite;
+      }
+      .app-button-loading { display: inline-flex; align-items: center; gap: 8px; }
+      @keyframes appLoadingSweep { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+      @keyframes appSpin { to { transform: rotate(360deg); } }
+      @keyframes appSkeleton { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+      @media (prefers-reduced-motion: reduce) {
+        .app-loading-bar.active, .app-mini-spinner, .loader, .app-skeleton, .app-skeleton-row, .app-loading-fallback {
+          animation: none !important;
+        }
+        .app-loading-overlay, .app-loading-panel {
+          transition: none !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function ensureElements() {
+    injectStyles();
+    if (!topBar) {
+      topBar = document.createElement('div');
+      topBar.className = 'app-loading-bar';
+      topBar.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(topBar);
+    }
+    if (!overlayEl) {
+      if (APP_LOADING_LOTTIE_SRC && /\.(json|lottie)(\?|$)/i.test(APP_LOADING_LOTTIE_SRC) && !document.getElementById('dotlottie-player-script')) {
+        const playerScript = document.createElement('script');
+        playerScript.id = 'dotlottie-player-script';
+        playerScript.type = 'module';
+        playerScript.src = 'https://unpkg.com/@lottiefiles/dotlottie-wc@0.6.2/dist/dotlottie-wc.js';
+        document.head.appendChild(playerScript);
+      }
+      overlayEl = document.createElement('div');
+      overlayEl.className = 'app-loading-overlay';
+      overlayEl.setAttribute('role', 'status');
+      overlayEl.setAttribute('aria-live', 'polite');
+      overlayEl.setAttribute('aria-modal', 'true');
+      overlayEl.innerHTML = `
+        <div class="app-loading-panel">
+          <span class="app-loading-lottie" aria-hidden="true">
+            ${APP_LOADING_LOTTIE_SRC && /\.(json|lottie)(\?|$)/i.test(APP_LOADING_LOTTIE_SRC)
+              ? `<dotlottie-wc src="${APP_LOADING_LOTTIE_SRC}" speed="1" mode="forward" loop autoplay></dotlottie-wc><span class="app-loading-fallback"></span>`
+              : '<span class="app-loading-fallback"></span>'}
+          </span>
+          <span class="app-loading-title" data-loading-status-text>Loading</span>
+          <span class="app-loading-subtitle">Please wait while the hostel portal finishes this request.</span>
+        </div>
+      `;
+      document.body.appendChild(overlayEl);
+
+      const lottieHolder = overlayEl.querySelector('.app-loading-lottie');
+      if (APP_LOADING_LOTTIE_SRC && window.customElements && lottieHolder) {
+        window.customElements.whenDefined('dotlottie-wc')
+          .then(() => lottieHolder.classList.add('has-player'))
+          .catch(() => {});
+      }
+    }
+  }
+
+  function resolveTarget(target) {
+    if (!target) return null;
+    if (typeof target === 'string') return document.querySelector(target);
+    if (target instanceof Element) return target;
+    return null;
+  }
+
+  function setButtonLoading(button, isLoading, label) {
+    if (!button) return;
+    if (isLoading) {
+      if (!button.dataset.loadingOriginalHtml) button.dataset.loadingOriginalHtml = button.innerHTML;
+      button.disabled = true;
+      button.innerHTML = `<span class="app-button-loading"><span class="app-mini-spinner" aria-hidden="true"></span><span>${label || 'Loading'}</span></span>`;
+    } else {
+      if (button.dataset.loadingOriginalHtml) {
+        button.innerHTML = button.dataset.loadingOriginalHtml;
+        delete button.dataset.loadingOriginalHtml;
+      }
+      button.disabled = false;
+    }
+  }
+
+  function startTarget(target, label, variant) {
+    const el = resolveTarget(target);
+    if (!el) return null;
+    const prev = targetStates.get(el) || { count: 0, html: null };
+    if (!prev.count) {
+      prev.html = el.innerHTML;
+      if (variant === 'button') {
+        setButtonLoading(el, true, label);
+      } else {
+        el.classList.add('app-loading-target');
+        el.dataset.loadingLabel = label || 'Loading';
+      }
+    }
+    prev.count += 1;
+    targetStates.set(el, prev);
+    return el;
+  }
+
+  function stopTarget(el, variant) {
+    if (!el) return;
+    const prev = targetStates.get(el);
+    if (!prev) return;
+    prev.count -= 1;
+    if (prev.count > 0) {
+      targetStates.set(el, prev);
+      return;
+    }
+    if (variant === 'button') {
+      setButtonLoading(el, false);
+    } else {
+      el.classList.remove('app-loading-target', 'is-loading');
+      delete el.dataset.loadingLabel;
+    }
+    targetStates.delete(el);
+  }
+
+  function refreshTopBar() {
+    ensureElements();
+    const activeLabels = Array.from(tasks.values()).filter(task => task.visible).map(task => task.label).filter(Boolean);
+    const visible = activeLabels.length > 0;
+    topBar.classList.toggle('active', visible);
+    overlayEl.classList.toggle('active', visible);
+    const labelEl = overlayEl.querySelector('[data-loading-status-text]');
+    if (labelEl) labelEl.textContent = activeLabels[activeLabels.length - 1] || 'Loading';
+  }
+
+  const manager = {
+    start(label = 'Loading', options = {}) {
+      const token = Symbol(label);
+      const task = {
+        label,
+        visible: false,
+        target: null,
+        targetVariant: options.variant,
+        timer: null
+      };
+      activeCount += 1;
+      task.timer = setTimeout(() => {
+        task.visible = true;
+        if (activeCount > 0) ensureElements();
+        if (options.target) {
+          task.target = startTarget(options.target, label, options.variant);
+          if (task.target && options.variant !== 'button') task.target.classList.add('is-loading');
+        }
+        refreshTopBar();
+      }, options.delay ?? 250);
+      tasks.set(token, task);
+      return token;
+    },
+    stop(token) {
+      const task = tasks.get(token);
+      if (!task) return;
+      clearTimeout(task.timer);
+      activeCount = Math.max(0, activeCount - 1);
+      stopTarget(task.target, task.targetVariant);
+      tasks.delete(token);
+      refreshTopBar();
+    },
+    async withTask(label, fnOrPromise, options = {}) {
+      const token = manager.start(label, options);
+      try {
+        const value = typeof fnOrPromise === 'function' ? fnOrPromise() : fnOrPromise;
+        return await value;
+      } finally {
+        manager.stop(token);
+      }
+    },
+    skeletonRows(count = 4) {
+      return Array.from({ length: count }, () => '<div class="app-skeleton-row"></div>').join('');
+    }
+  };
+
+  window.AppLoading = manager;
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', injectStyles, { once: true });
+  } else {
+    injectStyles();
+  }
+  return manager;
+}
+
+ensureAppLoading();
 
 // ── Data store for local execution ─────────────────────────
 const LOCAL_MOCK_STORE = {
@@ -12,8 +342,14 @@ const LOCAL_MOCK_STORE = {
   ],
   allocations: [],
   grievances: [],
+  settings: {
+    REGISTRATION_OPEN: 'true',
+    REGISTRATION_CLOSE_DATE: '',
+    HOSTEL_OFFICE_CONTACT: 'Contact the Warden Office for official hostel support.',
+    MESS_FEE_NOTE: 'Mess and hostel fee details will be announced through official notices.'
+  },
   notices: [
-    { NoticeID: 'NOT-001', Title: 'Hostel Registration Open', Body: 'Submissions are open for new student hostel applications.', PostedBy: 'Chief Warden', Date: new Date().toLocaleDateString(), Active: true }
+    { NoticeID: 'NOT-001', Title: 'Hostel Registration Open', Body: 'Submissions are open for new student hostel applications.', PostedBy: 'Chief Warden', Date: new Date().toLocaleDateString(), Active: true, Audience: 'Student' }
   ]
 };
 
@@ -75,7 +411,8 @@ function localCalculateProbability(student) {
 
 // ── Core request function ─────────────────────────────────────────────────
 async function gasRequest(action, method = 'GET', data = null, params = null) {
-  try {
+  return window.AppLoading.withTask(API_LOADING_LABELS[action] || 'Loading', async () => {
+    try {
     let url = GAS_CONFIG.URL;
     let options = { method };
 
@@ -101,6 +438,7 @@ async function gasRequest(action, method = 'GET', data = null, params = null) {
     console.warn(`[HostelAPI] ${action} API request failed. Using local fallback handler.`, error);
     return handleLocalFallback(action, data, params);
   }
+  });
 }
 
 function getLocalStudents() {
@@ -137,6 +475,13 @@ function normalizeDateComparison(val) {
   return str;
 }
 
+function normalizeNoticeAudience(value) {
+  const audience = String(value || '').trim().toLowerCase();
+  if (['homepage', 'home page', 'home', 'latest', 'latest updates', 'updates'].includes(audience)) return 'Homepage';
+  if (audience === 'both' || audience === 'all') return 'Both';
+  return 'Student';
+}
+
 function handleLocalFallback(action, data, params) {
   const students = getLocalStudents();
 
@@ -151,6 +496,36 @@ function handleLocalFallback(action, data, params) {
       return LOCAL_MOCK_STORE.grievances;
     case 'getNotices':
       return LOCAL_MOCK_STORE.notices;
+    case 'getSettingsPublic':
+      return {
+        registrationOpen: String(LOCAL_MOCK_STORE.settings.REGISTRATION_OPEN || 'true').toLowerCase() !== 'false',
+        registrationCloseDate: LOCAL_MOCK_STORE.settings.REGISTRATION_CLOSE_DATE || '',
+        hostelOfficeContact: LOCAL_MOCK_STORE.settings.HOSTEL_OFFICE_CONTACT || 'Contact the Warden Office for official hostel support.',
+        messFeeNote: LOCAL_MOCK_STORE.settings.MESS_FEE_NOTE || 'Mess and hostel fee details will be announced through official notices.'
+      };
+    case 'updateSetting': {
+      const key = data.Key || data.key;
+      if (key) LOCAL_MOCK_STORE.settings[key] = data.Value !== undefined ? data.Value : data.value;
+      return { success: true };
+    }
+    case 'getAllocationPreview': {
+      const pending = students.filter(s => {
+        const st = String(s.Status || '').toLowerCase();
+        return st === 'pending';
+      });
+      const verifiedPending = pending.filter(s => String(s.DocumentStatus || '').toLowerCase() === 'verified');
+      return {
+        success: true,
+        verifiedPending: verifiedPending.length,
+        unverifiedPending: pending.length - verifiedPending.length,
+        availableBoysSeats: LOCAL_MOCK_STORE.rooms
+          .filter(r => String(r.HostelType || '').toLowerCase().includes('boy'))
+          .reduce((sum, r) => sum + (Number(r.VacantBeds) || 0), 0),
+        availableGirlsSeats: LOCAL_MOCK_STORE.rooms
+          .filter(r => String(r.HostelType || '').toLowerCase().includes('girl'))
+          .reduce((sum, r) => sum + (Number(r.VacantBeds) || 0), 0)
+      };
+    }
     case 'getDashboard': {
       const allocatedBoys = students.filter(s => {
         const st = String(s.Status || '').toLowerCase();
@@ -292,6 +667,47 @@ function handleLocalFallback(action, data, params) {
       s.DiscrepancyEmailSentAt = new Date().toLocaleString();
       saveLocalStudents(students);
       return { success: true, sent: 1, message: `Discrepancy email sent to ${s.Name} (${s.Email}).` };
+    }
+    case 'postNotice': {
+      const notice = {
+        NoticeID: 'NOT-' + Math.random().toString(36).substring(2, 7).toUpperCase(),
+        Title: data.Title || data.title || 'Hostel Notice',
+        Body: data.Body || data.content || data.body || '',
+        PostedBy: data.PostedBy || data.postedBy || 'Hostel Administration',
+        PostedAt: new Date().toLocaleDateString(),
+        Active: true,
+        Audience: normalizeNoticeAudience(data.Audience || data.audience || data.Destination || data.destination)
+      };
+      LOCAL_MOCK_STORE.notices = [notice, ...LOCAL_MOCK_STORE.notices];
+      return { success: true, noticeId: notice.NoticeID };
+    }
+    case 'fileGrievance': {
+      const ticketId = 'GRV-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+      const grievance = {
+        TicketID: ticketId,
+        ApplicationID: data.ApplicationID || data.applicationId || '',
+        StudentName: data.StudentName || data.studentName || '',
+        StudentEmail: data.StudentEmail || data.studentEmail || '',
+        Date: new Date().toLocaleDateString(),
+        Category: data.Category || data.category || '',
+        Subject: data.Subject || data.subject || '',
+        Description: data.Description || data.description || '',
+        AttachmentURL: data.AttachmentURL || '',
+        Status: 'Open',
+        AdminResponse: '',
+        ResolvedAt: ''
+      };
+      LOCAL_MOCK_STORE.grievances = [grievance, ...LOCAL_MOCK_STORE.grievances];
+      return { success: true, ticketId };
+    }
+    case 'resolveGrievance': {
+      const ticketId = data.TicketID || data.ticketId || data.id;
+      const grievance = LOCAL_MOCK_STORE.grievances.find(g => String(g.TicketID) === String(ticketId));
+      if (!grievance) return { success: false, error: 'Grievance not found.' };
+      grievance.Status = 'Resolved';
+      grievance.AdminResponse = data.AdminResponse || data.adminResponse || 'Resolved by hostel administration.';
+      grievance.ResolvedAt = new Date().toLocaleString();
+      return { success: true };
     }
     case 'runAllocation': {
       const totalPending = students.filter(s => {
@@ -460,7 +876,8 @@ function downloadCSV(data, filename) {
 
 // ── Chatbot LLM fallback ──────────────────────────────────────────────────
 async function askChatbot(message, context = {}) {
-  try {
+  return window.AppLoading.withTask(API_LOADING_LABELS.askChatbot, async () => {
+    try {
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -487,6 +904,7 @@ async function askChatbot(message, context = {}) {
       error: 'The smart assistant is unavailable right now. You can still use the portal tabs for status, notices, and grievances.'
     };
   }
+  });
 }
 
 // ── Public API ────────────────────────────────────────────────────────────
@@ -498,6 +916,8 @@ window.HostelAPI = {
   getAllocations:    ()         => gasRequest('getAllocations',   'GET'),
   getGrievances:    ()         => gasRequest('getGrievances',    'GET'),
   getNotices:       ()         => gasRequest('getNotices',       'GET'),
+  getSettingsPublic: ()        => gasRequest('getSettingsPublic', 'GET'),
+  getAllocationPreview: ()     => gasRequest('getAllocationPreview', 'GET'),
   runAllocation:    ()         => gasRequest('runAllocation',    'GET'),
   sendLetters:      ()         => gasRequest('sendLetters',      'GET'),
   postNotice:       (data)     => gasRequest('postNotice',       'POST', data),
@@ -505,6 +925,7 @@ window.HostelAPI = {
   updateDocumentVerification: (data) => gasRequest('updateDocumentVerification', 'POST', data),
   sendDiscrepancyEmail: (data) => gasRequest('sendDiscrepancyEmail', 'POST', data),
   sendDiscrepancyEmails: (data = {}) => gasRequest('sendDiscrepancyEmails', 'POST', data),
+  updateSetting:    (data)     => gasRequest('updateSetting',    'POST', data),
   adminLogin:       (data)     => gasRequest('adminLogin',       'POST', data),
   exportCSV:        (data, fn) => downloadCSV(data, fn),
 

@@ -43,16 +43,24 @@ function showToast(message, type = 'info') {
     const FRAME_START   = 7;       // first file is frame_0007.jpg
     const IMAGE_PATH    = 'assets/sequence/';
     const EXT           = '.jpg';
-    const LERP_SPEED    = 0.08;    // smoothing factor (0.05 = silky, 0.15 = snappy)
+    const BASE_LERP     = 0.105;   // lower = smoother, higher = more responsive
+    const MAX_DPR       = 2;       // crisp canvas without wasting too much memory
+    const MOBILE_QUERY  = window.matchMedia('(max-width: 640px)');
 
     // ── State ───────────────────────────────────────────────
     const frames        = [];
     let   loadedCount   = 0;
-    let   targetFrame   = 0;       // where scroll wants us to be (integer)
+    let   targetFrame   = 0;       // where scroll wants us to be (float)
     let   smoothFrame   = 0;       // current interpolated position (float)
     let   lastRendered  = -1;      // last actually drawn frame index
     let   animating     = false;
     let   allLoaded     = false;
+    let   viewportW     = 0;
+    let   viewportH     = 0;
+    let   resizeRaf     = 0;
+    let   scrollMetrics = null;
+    let   lastScrollY   = window.scrollY || 0;
+    let   scrollingUp   = false;
 
     // ── DOM ─────────────────────────────────────────────────
     const canvas       = document.getElementById('droneCanvas');
@@ -63,6 +71,7 @@ function showToast(message, type = 'info') {
     const loadingFill  = document.getElementById('loadingFill');
     const loadingText  = document.getElementById('loadingText');
     const scrollCue    = document.getElementById('scrollCue');
+    const hamburger    = document.getElementById('hamburger');
 
     if (!canvas || !ctx || !scrollHero) {
         console.error('[Sequence] Required DOM elements not found. Aborting.');
@@ -76,18 +85,28 @@ function showToast(message, type = 'info') {
 
     // ── Resize canvas to fill viewport ──────────────────────
     function resizeCanvas() {
-        canvas.width  = window.innerWidth;
-        canvas.height = window.innerHeight;
+        const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+        viewportW = document.documentElement.clientWidth || window.innerWidth;
+        viewportH = window.visualViewport ? Math.round(window.visualViewport.height) : window.innerHeight;
+        canvas.width  = Math.round(viewportW * dpr);
+        canvas.height = Math.round(viewportH * dpr);
+        canvas.style.width = viewportW + 'px';
+        canvas.style.height = viewportH + 'px';
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         lastRendered = -1; // force re-render after resize
+        scrollMetrics = null;
+        renderFrame(Math.round(smoothFrame), true);
     }
 
     // ── Draw a frame to canvas (cover-fit) ──────────────────
-    function renderFrame(idx) {
-        if (idx === lastRendered) return;
+    function renderFrame(idx, force = false) {
+        idx = getNearestLoadedFrame(Math.max(0, Math.min(TOTAL_FRAMES - 1, idx)));
+        if (!force && idx === lastRendered) return;
         const img = frames[idx];
         if (!img || !img.complete || img.naturalWidth === 0) return;
 
-        const cW = canvas.width,  cH = canvas.height;
+        const cW = viewportW || window.innerWidth;
+        const cH = viewportH || window.innerHeight;
         const iW = img.naturalWidth, iH = img.naturalHeight;
 
         const scale = Math.max(cW / iW, cH / iH);
@@ -99,26 +118,47 @@ function showToast(message, type = 'info') {
         lastRendered = idx;
     }
 
+    function getNearestLoadedFrame(idx) {
+        if (frames[idx] && frames[idx].complete && frames[idx].naturalWidth > 0) return idx;
+        for (let offset = 1; offset < TOTAL_FRAMES; offset++) {
+            const before = idx - offset;
+            const after = idx + offset;
+            if (before >= 0 && frames[before] && frames[before].complete && frames[before].naturalWidth > 0) return before;
+            if (after < TOTAL_FRAMES && frames[after] && frames[after].complete && frames[after].naturalWidth > 0) return after;
+        }
+        return idx;
+    }
+
+    function getScrollMetrics() {
+        if (!scrollMetrics) {
+            scrollMetrics = {
+                sectionTop: scrollHero.offsetTop,
+                maxScroll: Math.max(1, scrollHero.offsetHeight - viewportH)
+            };
+        }
+        return scrollMetrics;
+    }
+
     // ── Scroll → target frame index ─────────────────────────
     function getFrameFromScroll() {
-        const sectionTop   = scrollHero.offsetTop;
-        const sectionH     = scrollHero.offsetHeight;
-        const viewportH    = window.innerHeight;
+        const metrics = getScrollMetrics();
 
-        const scrolled  = Math.max(0, window.scrollY - sectionTop);
-        const maxScroll = Math.max(1, sectionH - viewportH);
-        const progress  = Math.min(scrolled / maxScroll, 1);
+        const scrolled  = Math.max(0, window.scrollY - metrics.sectionTop);
+        const progress = Math.min(scrolled / metrics.maxScroll, 1);
 
-        return Math.min(Math.floor(progress * TOTAL_FRAMES), TOTAL_FRAMES - 1);
+        return Math.min(progress * (TOTAL_FRAMES - 1), TOTAL_FRAMES - 1);
     }
 
     // ── Smooth animation loop (runs at 60fps) ───────────────
     function animationLoop() {
         // Lerp toward target
-        smoothFrame += (targetFrame - smoothFrame) * LERP_SPEED;
+        const delta = targetFrame - smoothFrame;
+        const directionalBoost = scrollingUp ? 0.045 : 0;
+        const adaptiveLerp = Math.min(0.26, BASE_LERP + directionalBoost + Math.abs(delta) * 0.0022);
+        smoothFrame += delta * adaptiveLerp;
 
         // Snap when very close to avoid infinite micro-updates
-        if (Math.abs(smoothFrame - targetFrame) < 0.3) {
+        if (Math.abs(smoothFrame - targetFrame) < 0.05) {
             smoothFrame = targetFrame;
         }
 
@@ -142,6 +182,9 @@ function showToast(message, type = 'info') {
 
     // ── Scroll handler (lightweight — just sets target) ─────
     function onScroll() {
+        const currentScrollY = window.scrollY || 0;
+        scrollingUp = currentScrollY < lastScrollY;
+        lastScrollY = currentScrollY;
         targetFrame = getFrameFromScroll();
         startAnimating();
 
@@ -175,8 +218,7 @@ function showToast(message, type = 'info') {
 
             // Draw frame 0 the moment it's ready
             if (index === 0) {
-                canvas.width  = window.innerWidth;
-                canvas.height = window.innerHeight;
+                resizeCanvas();
                 renderFrame(0);
             }
 
@@ -212,14 +254,20 @@ function showToast(message, type = 'info') {
         // Load frame 0 immediately
         loadImage(0);
 
-        // Load the rest with a tiny stagger so the browser isn't choked
-        let i = 1;
+        // Load keyframes first so fast scrolls still have nearby frames.
+        const queue = [];
+        for (let i = 1; i < TOTAL_FRAMES; i += 4) queue.push(i);
+        for (let i = 2; i < TOTAL_FRAMES; i += 4) queue.push(i);
+        for (let i = 3; i < TOTAL_FRAMES; i += 4) queue.push(i);
+        for (let i = 4; i < TOTAL_FRAMES; i += 4) queue.push(i);
+
+        let i = 0;
         function step() {
-            if (i >= TOTAL_FRAMES) return;
-            loadImage(i);
+            if (i >= queue.length) return;
+            loadImage(queue[i]);
             i++;
-            // Batch 8 at a time, pause 1 frame between batches
-            if (i % 8 === 0) {
+            // Batch lightly to avoid decoding jank on the main thread.
+            if (i % 6 === 0) {
                 requestAnimationFrame(step);
             } else {
                 step();
@@ -228,18 +276,103 @@ function showToast(message, type = 'info') {
         requestAnimationFrame(step);
     }
 
+    function initMobileMenu() {
+        if (!hamburger || !navbar) return;
+        hamburger.addEventListener('click', () => {
+            const isOpen = navbar.classList.toggle('menu-open');
+            hamburger.setAttribute('aria-expanded', String(isOpen));
+        });
+        document.querySelectorAll('.nav-links a, .nav-actions button').forEach(item => {
+            item.addEventListener('click', () => {
+                navbar.classList.remove('menu-open');
+                hamburger.setAttribute('aria-expanded', 'false');
+            });
+        });
+    }
+
+    function escapeNoticeHTML(value) {
+        return String(value ?? '').replace(/[&<>"']/g, ch => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        }[ch]));
+    }
+
+    function formatNoticeDate(value) {
+        if (!value) return '';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return String(value);
+        return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+
+    async function loadHomepageNotices() {
+        const list = document.getElementById('homeNoticesList');
+        if (!list || !window.HostelAPI) return;
+
+        try {
+            const notices = await window.HostelAPI.getNotices();
+            const allNotices = notices || [];
+            let homepageNotices = allNotices.filter(notice => {
+                const audience = String(notice.Audience || notice.audience || '').trim().toLowerCase();
+                return ['homepage', 'home page', 'home', 'latest', 'latest updates', 'updates', 'both', 'all'].includes(audience);
+            }).slice(0, 3);
+
+            if (!homepageNotices.length) {
+                homepageNotices = allNotices.filter(notice => {
+                    const audience = String(notice.Audience || notice.audience || '').trim();
+                    return !audience;
+                }).slice(0, 3);
+            }
+
+            if (!homepageNotices.length) return;
+
+            list.innerHTML = homepageNotices.map((notice, index) => {
+                const title = notice.Title || notice.title || 'Hostel update';
+                const body = notice.Body || notice.content || notice.body || '';
+                const date = formatNoticeDate(notice.PostedAt || notice.Date || notice.date || '');
+                return `
+                    <div class="notice-item">
+                        <span class="notice-badge ${index === 0 ? 'new' : ''}">${index === 0 ? 'New' : 'Info'}</span>
+                        <div>
+                            <h4>${escapeNoticeHTML(title)}</h4>
+                            <p>${escapeNoticeHTML(body)}</p>
+                        </div>
+                        <span class="notice-date">${escapeNoticeHTML(date)}</span>
+                    </div>
+                `;
+            }).join('');
+        } catch (error) {
+            console.warn('[Notices] Could not load homepage notices.', error);
+        }
+    }
+
     // ── Init ─────────────────────────────────────────────────
     function init() {
-        canvas.width  = window.innerWidth;
-        canvas.height = window.innerHeight;
+        resizeCanvas();
 
         // Draw dark placeholder while loading
         ctx.fillStyle = '#0a0c1a';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillRect(0, 0, viewportW, viewportH);
 
         // Event listeners
-        window.addEventListener('resize',  resizeCanvas, { passive: true });
+        window.addEventListener('resize',  () => {
+            cancelAnimationFrame(resizeRaf);
+            resizeRaf = requestAnimationFrame(resizeCanvas);
+        }, { passive: true });
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', () => {
+                cancelAnimationFrame(resizeRaf);
+                resizeRaf = requestAnimationFrame(resizeCanvas);
+            }, { passive: true });
+        }
         window.addEventListener('scroll',  onScroll,     { passive: true });
+        if (MOBILE_QUERY.addEventListener) {
+            MOBILE_QUERY.addEventListener('change', resizeCanvas);
+        }
+        initMobileMenu();
+        loadHomepageNotices();
 
         // Start loading frames
         startLoading();

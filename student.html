@@ -195,6 +195,27 @@
         .register-link:hover {
             text-decoration: underline;
         }
+        .back-home-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            margin-top: 14px;
+            padding: 11px 14px;
+            border: 1px solid var(--c-border);
+            border-radius: 6px;
+            color: var(--c-text);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .back-home-link:hover {
+            border-color: var(--c-primary);
+            color: var(--c-primary);
+            background: var(--c-surface);
+        }
 
         /* STATE 2: Dashboard */
         #dashboard-state {
@@ -231,9 +252,31 @@
         }
         .tab-content {
             display: none;
+            opacity: 0;
+            transform: translateY(10px);
+            pointer-events: none;
         }
         .tab-content.active {
             display: block;
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+            animation: tabEnter 220ms ease;
+        }
+
+        @keyframes tabEnter {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .tab-content.active {
+                animation: none;
+            }
+            * {
+                transition-duration: 0.01ms !important;
+                animation-duration: 0.01ms !important;
+            }
         }
 
         /* Cards */
@@ -575,7 +618,7 @@
     <!-- STATE 1: LOGIN -->
     <div id="login-state">
         <div class="login-card">
-            <img src="assets/logo/ipu-logo.png" alt="GGSIPU Logo" class="login-logo" onerror="this.src='https://via.placeholder.com/60?text=Logo'">
+            <a href="index.html" aria-label="Go to landing page"><img src="assets/logo/ipu-logo.png" alt="GGSIPU Logo" class="login-logo" onerror="this.src='https://via.placeholder.com/60?text=Logo'"></a>
             <h1 class="login-title">Student Portal</h1>
             <p class="login-subtitle">Track your hostel application</p>
             
@@ -592,6 +635,7 @@
             </form>
 
             <a href="register.html" class="register-link" style="margin-top: 16px; display: inline-block;">New student? Submit hostel application</a>
+            <a href="index.html" class="back-home-link" aria-label="Back to main page">← Back to Main Page</a>
         </div>
     </div>
 
@@ -600,14 +644,14 @@
         <!-- Navbar -->
         <nav class="navbar">
             <div class="container navbar-container">
-                <a href="#" class="navbar-brand">
+                <a href="index.html" class="navbar-brand">
                     <img src="assets/logo/ipu-logo.png" alt="GGSIPU Logo" onerror="this.src='https://via.placeholder.com/40?text=Logo'">
                     Hostel Allocator
                 </a>
                 <div class="navbar-user">
                     <div class="user-info">
                         <div class="avatar">R</div>
-                        <span style="font-weight: 500; font-size: 14px; display: none; @media(min-width: 600px){display:block;}">Rahul Sharma</span>
+                        <span id="studentNavName" style="font-weight: 500; font-size: 14px;">Student</span>
                     </div>
                     <button id="logout-btn" class="btn btn-outline" style="padding: 6px 12px; font-size: 13px;">Logout</button>
                 </div>
@@ -935,7 +979,7 @@
             <form onsubmit="event.preventDefault(); showToast('Transfer request submitted!'); closeModal('transfer-modal'); this.reset();">
                 <div class="form-group">
                     <label class="form-label">Current Room</label>
-                    <input type="text" class="form-control" value="Shivalik - B-214" disabled>
+                    <input type="text" class="form-control" id="transferCurrentRoom" value="" disabled>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Reason for Transfer</label>
@@ -974,6 +1018,7 @@
         const tabContents = document.querySelectorAll('.tab-content');
         const toastEl = document.getElementById('toast');
         let toastTimeout;
+        let currentStudentStatus = null;
 
         // Login Handler
         loginForm.addEventListener('submit', async (e) => {
@@ -992,6 +1037,7 @@
                     }
                     
                     const studentName = statusData.name || 'Student';
+                    currentStudentStatus = statusData;
                     document.querySelector('#dashboard-state .avatar').textContent = studentName[0];
                     const nameSpan = document.querySelector('#dashboard-state .user-info span');
                     if (nameSpan) nameSpan.textContent = studentName;
@@ -1043,6 +1089,7 @@
             if (document.getElementById('overviewRoom')) document.getElementById('overviewRoom').textContent = statusData.allocatedRoom || alloc.RoomNumber || 'Pending Allocation';
             if (document.getElementById('overviewFloor')) document.getElementById('overviewFloor').textContent = alloc.Floor ? alloc.Floor + ' Floor' : 'TBD';
             if (document.getElementById('overviewRoommate')) document.getElementById('overviewRoommate').textContent = app.RoommatePreference || 'Auto-Assigned';
+            if (document.getElementById('transferCurrentRoom')) document.getElementById('transferCurrentRoom').value = statusData.allocatedRoom || alloc.RoomNumber || '';
 
             // Application Tab
             if (document.getElementById('appFullName')) document.getElementById('appFullName').textContent = name;
@@ -1221,13 +1268,23 @@
         async function loadNotices() {
             try {
                 const notices = await HostelAPI.getNotices();
+                const studentNotices = (notices || []).filter(n => {
+                    const audience = String(n.Audience || n.audience || '').trim().toLowerCase();
+                    return !audience || audience === 'student' || audience === 'both';
+                });
                 const container = document.querySelector('#tab-notices .card');
                 let html = '<h3 class="card-title" style="margin-bottom: 24px;">Hostel Notice Board</h3>';
-                notices.forEach(n => {
+                if (!studentNotices.length) {
+                    html += '<p style="color: var(--c-muted);">No active hostel notices are available right now.</p>';
+                }
+                studentNotices.forEach(n => {
+                    const date = n.PostedAt || n.Date || n.date || '';
+                    const title = n.Title || n.title || 'Hostel Notice';
+                    const body = n.Body || n.content || n.body || '';
                     html += `<div class="notice-card">
-                        <div class="notice-date">${n.date}</div>
-                        <h4 class="notice-title">${n.title}</h4>
-                        <p class="notice-body">${n.content}</p>
+                        <div class="notice-date">${date}</div>
+                        <h4 class="notice-title">${title}</h4>
+                        <p class="notice-body">${body}</p>
                     </div>`;
                 });
                 if (container) container.innerHTML = html;
@@ -1246,10 +1303,14 @@
                 try {
                     const select = grievanceForm.querySelector('select');
                     const inputs = grievanceForm.querySelectorAll('input, textarea');
+                    const app = currentStudentStatus?.applicationDetails || {};
                     const data = {
-                        category: select.value,
-                        subject: inputs[0].value,
-                        description: inputs[1].value
+                        ApplicationID: currentStudentStatus?.applicationId || app.ApplicationID || '',
+                        StudentName: currentStudentStatus?.name || app.Name || '',
+                        StudentEmail: app.Email || '',
+                        Category: select.value,
+                        Subject: inputs[0].value,
+                        Description: inputs[1].value
                     };
                     const res = await HostelAPI.fileGrievance(data);
                     showToast(`Grievance submitted successfully! Ticket ID: ${res.ticketId}`);
@@ -1267,6 +1328,7 @@
             dashboardState.classList.add('hidden');
             loginState.classList.remove('hidden');
             loginForm.reset();
+            currentStudentStatus = null;
             switchTab('overview'); // reset to first tab
             if (window.HostelChatbot) window.HostelChatbot.reset();
         });

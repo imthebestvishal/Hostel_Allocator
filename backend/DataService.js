@@ -252,7 +252,7 @@ function getStudentStatus(enrollmentNo, dob) {
   
   if (student.Status === 'Allocated') {
     const allocations = getAllAllocations();
-    const alloc = allocations.find(a => String(a.EnrollmentNo).trim() === targetEnroll);
+    const alloc = allocations.find(a => String(a.EnrollmentNo).trim().toLowerCase() === targetEnroll);
     if (alloc) {
       result.allocation = alloc;
       result.allocatedRoom = alloc.RoomNumber;
@@ -260,7 +260,7 @@ function getStudentStatus(enrollmentNo, dob) {
     }
   } else if (student.Status === 'Waitlisted') {
     const waitlist = getSheetData('WaitingList');
-    const entry = waitlist.find(w => String(w.EnrollmentNo).trim() === targetEnroll);
+    const entry = waitlist.find(w => String(w.EnrollmentNo).trim().toLowerCase() === targetEnroll);
     if (entry) result.waitlistPosition = entry.Position;
   }
   
@@ -385,14 +385,65 @@ function saveAllocation(a) {
   }
 }
 
+function ensureNoticeColumns() {
+  const sheet = getSheet('Notices');
+  if (!sheet) return {};
+  const requiredHeaders = ['NoticeID', 'Title', 'Body', 'PostedBy', 'PostedAt', 'Active', 'Audience'];
+  const lastColumn = Math.max(sheet.getLastColumn(), 1);
+  const headers = sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0];
+  let changed = false;
+
+  requiredHeaders.forEach(header => {
+    if (!headers.includes(header)) {
+      headers.push(header);
+      changed = true;
+    }
+  });
+
+  if (changed) {
+    const maxColumns = sheet.getMaxColumns();
+    const diff = headers.length - maxColumns;
+    if (diff > 0) sheet.insertColumnsAfter(maxColumns, diff);
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    if (typeof formatHeaderRow === 'function') formatHeaderRow(sheet);
+  }
+
+  const map = {};
+  headers.forEach((header, index) => {
+    if (header) map[header] = index + 1;
+  });
+  return map;
+}
+
+function normalizeNoticeAudience(value) {
+  const audience = String(value || '').trim().toLowerCase();
+  if (['homepage', 'home page', 'home', 'latest', 'latest updates', 'updates'].indexOf(audience) !== -1) return 'Homepage';
+  if (audience === 'both' || audience === 'all') return 'Both';
+  return 'Student';
+}
+
 function getNotices() {
+  ensureNoticeColumns();
   return getSheetData('Notices').filter(n => n.Active === true || n.Active === 'TRUE').reverse();
 }
 
 function postNotice(data) {
   const sheet = getSheet('Notices');
+  const columnMap = ensureNoticeColumns();
   const noticeId = 'NOT-' + Utilities.getUuid().substring(0, 5).toUpperCase();
-  sheet.appendRow([noticeId, data.Title, data.Body, data.PostedBy, new Date(), true]);
+  const title = data.Title || data.title || '';
+  const body = data.Body || data.content || data.body || '';
+  const postedBy = data.PostedBy || data.postedBy || 'Hostel Administration';
+  const audience = normalizeNoticeAudience(data.Audience || data.audience || data.Destination || data.destination);
+  const row = [];
+  row[columnMap.NoticeID - 1] = noticeId;
+  row[columnMap.Title - 1] = title;
+  row[columnMap.Body - 1] = body;
+  row[columnMap.PostedBy - 1] = postedBy;
+  row[columnMap.PostedAt - 1] = new Date();
+  row[columnMap.Active - 1] = true;
+  row[columnMap.Audience - 1] = audience;
+  sheet.appendRow(row);
   return { success: true, noticeId: noticeId };
 }
 
@@ -400,8 +451,18 @@ function fileGrievance(data) {
   const sheet = getSheet('Grievances');
   const ticketId = 'GRV-' + Utilities.getUuid().substring(0, 5).toUpperCase();
   sheet.appendRow([
-    ticketId, data.ApplicationID, data.StudentName, data.StudentEmail, new Date(),
-    data.Category, data.Subject, data.Description, data.AttachmentURL || '', 'Open', '', ''
+    ticketId,
+    data.ApplicationID || data.applicationId || '',
+    data.StudentName || data.studentName || '',
+    data.StudentEmail || data.studentEmail || '',
+    new Date(),
+    data.Category || data.category || '',
+    data.Subject || data.subject || '',
+    data.Description || data.description || '',
+    data.AttachmentURL || data.attachmentUrl || '',
+    'Open',
+    '',
+    ''
   ]);
   sendGrievanceAcknowledgement({ ...data, TicketID: ticketId });
   return { success: true, ticketId: ticketId };
@@ -414,10 +475,11 @@ function getAllGrievances() {
 function resolveGrievance(data) {
   const sheet = getSheet('Grievances');
   const grievances = sheet.getDataRange().getValues();
+  const ticketId = data.TicketID || data.ticketId || data.id || '';
   for (let i = 1; i < grievances.length; i++) {
-    if (grievances[i][0] === data.TicketID) {
+    if (grievances[i][0] === ticketId) {
       sheet.getRange(i + 1, 10).setValue('Resolved');
-      sheet.getRange(i + 1, 11).setValue(data.AdminResponse);
+      sheet.getRange(i + 1, 11).setValue(data.AdminResponse || data.adminResponse || 'Resolved by hostel administration.');
       sheet.getRange(i + 1, 12).setValue(new Date());
       return { success: true };
     }
@@ -523,4 +585,41 @@ function adminLogin(data) {
     return { success: true };
   }
   return { success: false };
+}
+
+function getSettingsMap() {
+  const settings = getSheetData('Settings');
+  const map = {};
+  settings.forEach(row => {
+    if (row.Key) map[row.Key] = row.Value;
+  });
+  return map;
+}
+
+function getSettingsPublic() {
+  const settings = getSettingsMap();
+  return {
+    registrationOpen: String(settings.REGISTRATION_OPEN || 'true').toLowerCase() !== 'false',
+    registrationCloseDate: settings.REGISTRATION_CLOSE_DATE || '',
+    hostelOfficeContact: settings.HOSTEL_OFFICE_CONTACT || 'Contact the Warden Office for official hostel support.',
+    messFeeNote: settings.MESS_FEE_NOTE || 'Mess and hostel fee details will be announced through official notices.'
+  };
+}
+
+function updateSetting(data) {
+  const allowed = ['REGISTRATION_OPEN', 'REGISTRATION_CLOSE_DATE', 'HOSTEL_OFFICE_CONTACT', 'MESS_FEE_NOTE'];
+  const key = data.Key || data.key || '';
+  const value = data.Value !== undefined ? data.Value : data.value;
+  if (!allowed.includes(key)) return { success: false, error: 'Setting cannot be updated from admin panel.' };
+
+  const sheet = getSheet('Settings');
+  const rows = sheet.getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][0] === key) {
+      sheet.getRange(i + 1, 2).setValue(value);
+      return { success: true };
+    }
+  }
+  sheet.appendRow([key, value, 'Admin configurable setting']);
+  return { success: true };
 }

@@ -9,6 +9,7 @@
         :root {
             --c-primary: hsl(228, 52%, 29%);
             --c-accent: hsl(41, 100%, 47%);
+            --c-loader-accent: hsl(211, 92%, 48%);
             --c-dark: hsl(228, 30%, 10%);
             --c-text: hsl(228, 15%, 20%);
             --c-muted: hsl(228, 10%, 50%);
@@ -211,8 +212,7 @@
         input[type="tel"],
         input[type="date"],
         input[type="number"],
-        select,
-        input[type="file"] {
+        select {
             width: 100%;
             padding: 0.75rem;
             border: 1px solid var(--c-border);
@@ -252,12 +252,190 @@
         }
 
         .form-group.error input,
-        .form-group.error select {
+        .form-group.error select,
+        .form-group.error .upload-card {
             border-color: var(--c-error);
         }
         
         .form-group.error .error-message {
             display: block;
+        }
+
+        .upload-card {
+            position: relative;
+            display: grid;
+            grid-template-columns: 42px 1fr auto;
+            gap: 12px;
+            align-items: center;
+            border: 1px solid var(--c-border);
+            border-radius: 8px;
+            padding: 12px;
+            background: #fff;
+            transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+        }
+
+        .upload-card:hover,
+        .upload-card:focus-within {
+            border-color: var(--c-primary);
+            box-shadow: 0 0 0 3px rgba(35, 53, 113, 0.08);
+        }
+
+        .upload-card.is-ready {
+            border-color: rgba(16, 185, 129, .45);
+            background: #f8fffb;
+        }
+
+        .upload-card.is-busy {
+            border-color: rgba(35, 53, 113, .35);
+        }
+
+        .upload-card.is-error {
+            border-color: rgba(239, 68, 68, .5);
+            background: #fffafa;
+        }
+
+        .upload-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--c-surface);
+            color: var(--c-primary);
+            font-weight: 800;
+            font-size: .72rem;
+        }
+
+        .upload-title {
+            font-weight: 700;
+            color: var(--c-dark);
+            font-size: .92rem;
+        }
+
+        .upload-meta {
+            margin-top: 2px;
+            color: var(--c-muted);
+            font-size: .8rem;
+            overflow-wrap: anywhere;
+        }
+
+        .upload-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .upload-badge {
+            min-width: 48px;
+            text-align: center;
+            border-radius: 999px;
+            padding: 5px 8px;
+            background: var(--c-surface);
+            color: var(--c-muted);
+            font-size: .7rem;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .upload-card.is-ready .upload-badge {
+            background: #dcfce7;
+            color: #047857;
+        }
+
+        .upload-card.is-error .upload-badge {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+
+        .upload-pick,
+        .upload-remove {
+            border: 1px solid var(--c-border);
+            background: #fff;
+            color: var(--c-primary);
+            border-radius: 6px;
+            padding: 7px 10px;
+            font: 700 .78rem var(--font-main);
+            cursor: pointer;
+        }
+
+        .upload-remove {
+            display: none;
+            color: var(--c-error);
+        }
+
+        .upload-card.has-file .upload-remove {
+            display: inline-block;
+        }
+
+        .upload-native-input {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .upload-progress {
+            grid-column: 1 / -1;
+            height: 3px;
+            overflow: hidden;
+            border-radius: 999px;
+            background: #edf2f7;
+            display: none;
+        }
+
+        .upload-progress span {
+            display: block;
+            width: 0%;
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, var(--c-primary), var(--c-loader-accent));
+            transition: width .18s ease;
+        }
+
+        .upload-card.is-busy .upload-progress {
+            display: block;
+        }
+
+        .submission-panel {
+            display: none;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid rgba(35,53,113,.16);
+            border-radius: 8px;
+            background: #f8fafc;
+            color: var(--c-muted);
+            font-size: .9rem;
+            font-weight: 600;
+        }
+
+        .submission-panel.active {
+            display: flex;
+        }
+
+        .submission-spinner {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            border: 2px solid rgba(35,53,113,.16);
+            border-top-color: var(--c-primary);
+            animation: uploadSpin .75s linear infinite;
+        }
+
+        @keyframes uploadSpin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .submission-spinner {
+                animation: none;
+            }
+            .upload-progress span {
+                transition: none;
+            }
         }
 
         /* Review Step */
@@ -307,6 +485,8 @@
         .btn-group {
             display: flex;
             justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
             margin-top: 2.5rem;
             padding-top: 1.5rem;
             border-top: 1px solid var(--c-border);
@@ -433,7 +613,7 @@
 
     <!-- Navbar -->
     <nav class="navbar">
-        <a href="#" class="nav-brand">
+        <a href="index.html" class="nav-brand">
             <img src="assets/logo/ipu-logo.png" alt="GGSIPU Logo" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDEwMCAxMDAiPjxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjQ1IiBmaWxsPSIjMjMzNTcxIi8+PHRleHQgeD0iNTAiIHk9IjYwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMzAiIGZpbGw9IiNmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiPklQVTwvdGV4dD48L3N2Zz4='">
             GGSIPU Hostel Allocator
         </a>
@@ -515,13 +695,39 @@
 
                         <div class="form-group full-width">
                             <label for="aadhaarDoc" class="required">Aadhaar Document</label>
-                            <input type="file" id="aadhaarDoc" name="aadhaarDoc" accept="application/pdf,image/*" required>
+                            <div class="upload-card" data-upload-card="aadhaarDoc">
+                                <div class="upload-icon" data-upload-icon>DOC</div>
+                                <div>
+                                    <div class="upload-title">Aadhaar Document</div>
+                                    <div class="upload-meta" data-upload-meta>PDF or image, required</div>
+                                </div>
+                                <div class="upload-actions">
+                                    <span class="upload-badge" data-upload-badge>Required</span>
+                                    <button type="button" class="upload-pick" data-upload-pick>Choose</button>
+                                    <button type="button" class="upload-remove" data-upload-remove>Remove</button>
+                                </div>
+                                <input class="upload-native-input" type="file" id="aadhaarDoc" name="aadhaarDoc" accept="application/pdf,image/*" required>
+                                <div class="upload-progress"><span data-upload-progress></span></div>
+                            </div>
                             <div class="error-message">Upload Aadhaar document</div>
                         </div>
 
                         <div class="form-group full-width">
                             <label for="photo">Profile Photo</label>
-                            <input type="file" id="photo" name="photo" accept="image/*">
+                            <div class="upload-card" data-upload-card="photo">
+                                <div class="upload-icon" data-upload-icon>IMG</div>
+                                <div>
+                                    <div class="upload-title">Profile Photo</div>
+                                    <div class="upload-meta" data-upload-meta>Image file, optional</div>
+                                </div>
+                                <div class="upload-actions">
+                                    <span class="upload-badge" data-upload-badge>Optional</span>
+                                    <button type="button" class="upload-pick" data-upload-pick>Choose</button>
+                                    <button type="button" class="upload-remove" data-upload-remove>Remove</button>
+                                </div>
+                                <input class="upload-native-input" type="file" id="photo" name="photo" accept="image/*">
+                                <div class="upload-progress"><span data-upload-progress></span></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -575,7 +781,20 @@
 
                         <div class="form-group full-width">
                             <label for="marksheet">12th Marksheet</label>
-                            <input type="file" id="marksheet" name="marksheet" accept="application/pdf,image/*">
+                            <div class="upload-card" data-upload-card="marksheet">
+                                <div class="upload-icon" data-upload-icon>DOC</div>
+                                <div>
+                                    <div class="upload-title">12th Marksheet</div>
+                                    <div class="upload-meta" data-upload-meta>PDF or image, optional</div>
+                                </div>
+                                <div class="upload-actions">
+                                    <span class="upload-badge" data-upload-badge>Optional</span>
+                                    <button type="button" class="upload-pick" data-upload-pick>Choose</button>
+                                    <button type="button" class="upload-remove" data-upload-remove>Remove</button>
+                                </div>
+                                <input class="upload-native-input" type="file" id="marksheet" name="marksheet" accept="application/pdf,image/*">
+                                <div class="upload-progress"><span data-upload-progress></span></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -623,15 +842,28 @@
                         <div class="form-group">
                             <label class="required">Are you a Person with Disability (PWD)?</label>
                             <div class="radio-group">
-                                <label class="radio-label"><input type="radio" name="pwd" value="Yes" required onchange="document.getElementById('pwdDocGroup').classList.remove('hidden')"> Yes</label>
-                                <label class="radio-label"><input type="radio" name="pwd" value="No" onchange="document.getElementById('pwdDocGroup').classList.add('hidden')"> No</label>
+                                <label class="radio-label"><input type="radio" name="pwd" value="Yes" required onchange="togglePwdDocument(true)"> Yes</label>
+                                <label class="radio-label"><input type="radio" name="pwd" value="No" onchange="togglePwdDocument(false)"> No</label>
                             </div>
                             <div class="error-message">Please select an option</div>
                         </div>
 
                         <div class="form-group full-width hidden" id="pwdDocGroup">
                             <label>Disability Certificate</label>
-                            <input type="file" id="pwdDoc" name="pwdDoc" accept="application/pdf,image/*">
+                            <div class="upload-card" data-upload-card="pwdDoc">
+                                <div class="upload-icon" data-upload-icon>DOC</div>
+                                <div>
+                                    <div class="upload-title">PWD Certificate</div>
+                                    <div class="upload-meta" data-upload-meta>PDF or image, required for PWD students</div>
+                                </div>
+                                <div class="upload-actions">
+                                    <span class="upload-badge" data-upload-badge>Conditional</span>
+                                    <button type="button" class="upload-pick" data-upload-pick>Choose</button>
+                                    <button type="button" class="upload-remove" data-upload-remove>Remove</button>
+                                </div>
+                                <input class="upload-native-input" type="file" id="pwdDoc" name="pwdDoc" accept="application/pdf,image/*">
+                                <div class="upload-progress"><span data-upload-progress></span></div>
+                            </div>
                         </div>
 
 
@@ -660,6 +892,10 @@
 
                 <!-- Buttons -->
                 <div class="btn-group">
+                    <div class="submission-panel" id="submissionPanel">
+                        <span class="submission-spinner" aria-hidden="true"></span>
+                        <span id="submissionPanelText">Uploading documents and submitting application...</span>
+                    </div>
                     <button type="button" class="btn btn-outline" id="prevBtn" onclick="nextPrev(-1)" style="display: none;">Previous</button>
                     <button type="button" class="btn btn-primary" id="nextBtn" onclick="nextPrev(1)" style="margin-left: auto;">Next</button>
                 </div>
@@ -684,9 +920,166 @@
         let currentStep = 0;
         const steps = document.querySelectorAll('.form-step');
         const stepperItems = document.querySelectorAll('.step');
+        let publicSettings = { registrationOpen: true, registrationCloseDate: '' };
+        const uploadConfigs = {
+            aadhaarDoc: { empty: 'PDF or image, required', emptyBadge: 'Required', required: true },
+            photo: { empty: 'Image file, optional', emptyBadge: 'Optional', required: false },
+            marksheet: { empty: 'PDF or image, optional', emptyBadge: 'Optional', required: false },
+            pwdDoc: { empty: 'PDF or image, required for PWD students', emptyBadge: 'Conditional', required: false }
+        };
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                publicSettings = await HostelAPI.getSettingsPublic();
+                applyRegistrationAvailability();
+            } catch (e) {
+                publicSettings = { registrationOpen: true, registrationCloseDate: '' };
+            }
+        });
+
+        function isRegistrationClosed() {
+            if (!publicSettings || publicSettings.registrationOpen === false) return true;
+            if (publicSettings.registrationCloseDate) {
+                const closeDate = new Date(publicSettings.registrationCloseDate + 'T23:59:59');
+                if (!Number.isNaN(closeDate.getTime()) && new Date() > closeDate) return true;
+            }
+            return false;
+        }
+
+        function applyRegistrationAvailability() {
+            if (!isRegistrationClosed()) return;
+            const formContainer = document.querySelector('.form-container') || document.querySelector('.container');
+            if (!formContainer || document.getElementById('registrationClosedNotice')) return;
+            const notice = document.createElement('div');
+            notice.id = 'registrationClosedNotice';
+            notice.style.cssText = 'padding:14px 16px; border:1px solid #f59e0b; background:#fffbeb; color:#92400e; border-radius:8px; margin-bottom:20px; font-size:14px;';
+            notice.textContent = `Hostel registration is currently closed${publicSettings.registrationCloseDate ? ' after ' + publicSettings.registrationCloseDate : ''}. You may review the form, but submission is disabled.`;
+            formContainer.prepend(notice);
+        }
         
         // Show initial step
         showStep(currentStep);
+        initUploadCards();
+
+        function formatFileSize(bytes) {
+            if (!bytes) return '0 KB';
+            const units = ['B', 'KB', 'MB'];
+            let value = bytes;
+            let unit = 0;
+            while (value >= 1024 && unit < units.length - 1) {
+                value /= 1024;
+                unit += 1;
+            }
+            return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
+        }
+
+        function getFileKind(file) {
+            const type = String(file?.type || '').toLowerCase();
+            const name = String(file?.name || '').toLowerCase();
+            if (type === 'application/pdf' || name.endsWith('.pdf')) return 'PDF';
+            if (type.startsWith('image/')) return 'Image';
+            return 'Unsupported';
+        }
+
+        function getUploadCard(inputId) {
+            return document.querySelector(`[data-upload-card="${inputId}"]`);
+        }
+
+        function setUploadState(inputId, state, message, options = {}) {
+            const card = getUploadCard(inputId);
+            if (!card) return;
+            const input = document.getElementById(inputId);
+            const meta = card.querySelector('[data-upload-meta]');
+            const badge = card.querySelector('[data-upload-badge]');
+            const icon = card.querySelector('[data-upload-icon]');
+            const progress = card.querySelector('[data-upload-progress]');
+            const config = uploadConfigs[inputId] || {};
+            const file = input?.files?.[0] || null;
+            const kind = file ? getFileKind(file) : '';
+
+            card.classList.remove('has-file', 'is-ready', 'is-busy', 'is-error');
+            if (file) card.classList.add('has-file');
+            if (state === 'ready' || state === 'uploaded') card.classList.add('is-ready');
+            if (state === 'preparing' || state === 'uploading') card.classList.add('is-busy');
+            if (state === 'error') card.classList.add('is-error');
+
+            if (meta) meta.textContent = message || (file ? `${file.name} • ${formatFileSize(file.size)}` : config.empty || 'Choose a file');
+            if (badge) {
+                if (state === 'ready') badge.textContent = kind || 'Ready';
+                else if (state === 'preparing') badge.textContent = 'Preparing';
+                else if (state === 'uploading') badge.textContent = 'Uploading';
+                else if (state === 'uploaded') badge.textContent = 'Uploaded';
+                else if (state === 'error') badge.textContent = 'Error';
+                else badge.textContent = config.emptyBadge || 'Optional';
+            }
+            if (icon) {
+                if (state === 'ready' || state === 'uploaded') icon.textContent = 'OK';
+                else if (state === 'error') icon.textContent = '!';
+                else if (kind === 'Image') icon.textContent = 'IMG';
+                else icon.textContent = 'DOC';
+            }
+            if (progress) progress.style.width = `${Math.max(0, Math.min(100, Number(options.progress) || 0))}%`;
+        }
+
+        function clearUpload(inputId) {
+            const input = document.getElementById(inputId);
+            if (input) input.value = '';
+            setUploadState(inputId, 'empty');
+        }
+
+        function validateSelectedFile(inputId) {
+            const input = document.getElementById(inputId);
+            const file = input?.files?.[0] || null;
+            if (!file) {
+                setUploadState(inputId, 'empty');
+                return true;
+            }
+            const kind = getFileKind(file);
+            const accept = String(input.getAttribute('accept') || '');
+            const allowed = kind === 'PDF' || (kind === 'Image' && accept.includes('image'));
+            if (!allowed || kind === 'Unsupported') {
+                setUploadState(inputId, 'error', 'Unsupported file. Please choose a PDF or image.');
+                input.value = '';
+                return false;
+            }
+            input.closest('.form-group')?.classList.remove('error');
+            setUploadState(inputId, 'ready', `${file.name} • ${formatFileSize(file.size)}`);
+            return true;
+        }
+
+        function initUploadCards() {
+            Object.keys(uploadConfigs).forEach(inputId => {
+                const card = getUploadCard(inputId);
+                const input = document.getElementById(inputId);
+                if (!card || !input) return;
+                const pick = card.querySelector('[data-upload-pick]');
+                const remove = card.querySelector('[data-upload-remove]');
+                pick?.addEventListener('click', () => input.click());
+                remove?.addEventListener('click', () => clearUpload(inputId));
+                card.addEventListener('click', event => {
+                    if (event.target.closest('button')) return;
+                    input.click();
+                });
+                input.addEventListener('change', () => validateSelectedFile(inputId));
+                setUploadState(inputId, 'empty');
+            });
+        }
+
+        function togglePwdDocument(isRequired) {
+            const group = document.getElementById('pwdDocGroup');
+            const input = document.getElementById('pwdDoc');
+            if (isRequired) {
+                group?.classList.remove('hidden');
+                input?.setAttribute('required', 'required');
+                uploadConfigs.pwdDoc.required = true;
+                if (!input?.files?.length) setUploadState('pwdDoc', 'empty', 'PDF or image, required');
+            } else {
+                group?.classList.add('hidden');
+                input?.removeAttribute('required');
+                uploadConfigs.pwdDoc.required = false;
+                clearUpload('pwdDoc');
+            }
+        }
 
         function showStep(n) {
             steps[n].classList.add('active');
@@ -862,31 +1255,61 @@
 
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
+                setUploadState(inputId, 'preparing', `Preparing ${file.name}`, { progress: 12 });
+                reader.onprogress = event => {
+                    if (!event.lengthComputable) return;
+                    const pct = Math.max(12, Math.min(94, Math.round((event.loaded / event.total) * 94)));
+                    setUploadState(inputId, 'preparing', `Preparing ${file.name}`, { progress: pct });
+                };
                 reader.onload = () => {
                     const result = String(reader.result || '');
+                    setUploadState(inputId, 'ready', `${file.name} • ${formatFileSize(file.size)}`, { progress: 100 });
                     resolve({
                         name: file.name,
                         type: file.type || 'application/octet-stream',
                         data: result.includes(',') ? result.split(',')[1] : result
                     });
                 };
-                reader.onerror = () => reject(reader.error || new Error('Could not read file.'));
+                reader.onerror = () => {
+                    setUploadState(inputId, 'error', 'Could not read file.', { progress: 100 });
+                    reject(reader.error || new Error('Could not read file.'));
+                };
                 reader.readAsDataURL(file);
             });
         }
 
         async function submitForm() {
+            if (isRegistrationClosed()) {
+                alert('Hostel registration is currently closed. Please check official notices for the next registration window.');
+                return;
+            }
             const btn = document.getElementById('nextBtn');
+            const prevBtn = document.getElementById('prevBtn');
+            const submissionPanel = document.getElementById('submissionPanel');
+            const submissionPanelText = document.getElementById('submissionPanelText');
+            const documentIds = ['aadhaarDoc', 'photo', 'marksheet', 'pwdDoc'];
             btn.innerText = 'Submitting...';
             btn.disabled = true;
+            if (prevBtn) prevBtn.disabled = true;
+            submissionPanel?.classList.add('active');
+            if (submissionPanelText) submissionPanelText.textContent = 'Preparing documents...';
             
             try {
+                documentIds.forEach(id => {
+                    const input = document.getElementById(id);
+                    if (input?.files?.length) setUploadState(id, 'preparing', `Preparing ${input.files[0].name}`, { progress: 8 });
+                });
                 const [aadhaarDoc, photoDoc, marksheetDoc, pwdDoc] = await Promise.all([
                     fileToPayload('aadhaarDoc'),
                     fileToPayload('photo'),
                     fileToPayload('marksheet'),
                     fileToPayload('pwdDoc')
                 ]);
+                documentIds.forEach(id => {
+                    const input = document.getElementById(id);
+                    if (input?.files?.length) setUploadState(id, 'uploading', `Uploading ${input.files[0].name}`, { progress: 100 });
+                });
+                if (submissionPanelText) submissionPanelText.textContent = 'Uploading documents and submitting application...';
 
                 const formData = {
                     Name: document.getElementById('fullName')?.value || '',
@@ -921,13 +1344,23 @@
                 if (res && res.success === false) {
                     throw new Error(res.message || 'Server failed to save application.');
                 }
+                documentIds.forEach(id => {
+                    const input = document.getElementById(id);
+                    if (input?.files?.length) setUploadState(id, 'uploaded', `${input.files[0].name} uploaded`, { progress: 100 });
+                });
                 document.getElementById('appIdDisplay').innerText = res.applicationId || 'Submitted';
                 document.getElementById('successModal').classList.add('active');
             } catch(e) {
                 console.error(e);
+                documentIds.forEach(id => {
+                    const input = document.getElementById(id);
+                    if (input?.files?.length) setUploadState(id, 'error', 'Upload failed. Please try again.', { progress: 100 });
+                });
                 alert('Failed to submit application: ' + e.message);
                 btn.innerText = 'Submit Application';
                 btn.disabled = false;
+                if (prevBtn) prevBtn.disabled = false;
+                submissionPanel?.classList.remove('active');
             }
         }
     </script>

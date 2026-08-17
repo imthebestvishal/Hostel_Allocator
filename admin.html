@@ -37,6 +37,72 @@
             overflow: hidden;
         }
 
+        body.admin-locked .navbar,
+        body.admin-locked .sidebar,
+        body.admin-locked .main-content {
+            display: none;
+        }
+
+        .admin-login-state {
+            min-height: 100vh;
+            width: 100%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--c-primary), var(--c-dark));
+            padding: 24px;
+        }
+
+        body.admin-locked .admin-login-state {
+            display: flex;
+        }
+
+        .admin-login-card {
+            width: 100%;
+            max-width: 420px;
+            background: white;
+            border-radius: 10px;
+            padding: 32px;
+            box-shadow: 0 18px 45px rgba(0,0,0,.25);
+        }
+
+        .admin-login-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: var(--c-primary);
+            text-decoration: none;
+            font-weight: 800;
+            margin-bottom: 22px;
+        }
+
+        .admin-login-brand img {
+            height: 44px;
+        }
+
+        .admin-back-home {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            margin-top: 14px;
+            padding: 11px 14px;
+            border: 1px solid var(--c-border);
+            border-radius: 6px;
+            color: var(--c-text);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: var(--transition);
+        }
+
+        .admin-back-home:hover {
+            border-color: var(--c-primary);
+            color: var(--c-primary);
+            background: var(--c-surface);
+        }
+
         /* Navbar */
         .navbar {
             position: fixed;
@@ -60,6 +126,7 @@
             font-weight: 700;
             font-size: 1.1rem;
             color: var(--c-primary);
+            text-decoration: none;
         }
 
         .navbar-brand img {
@@ -174,16 +241,32 @@
 
         .section {
             display: none;
-            animation: fadeIn 0.3s ease;
+            opacity: 0;
+            transform: translateY(10px);
+            pointer-events: none;
         }
 
         .section.active {
             display: block;
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+            animation: sectionEnter 220ms ease;
         }
 
-        @keyframes fadeIn {
+        @keyframes sectionEnter {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .section.active {
+                animation: none;
+            }
+            * {
+                transition-duration: 0.01ms !important;
+                animation-duration: 0.01ms !important;
+            }
         }
 
         .page-header {
@@ -315,10 +398,47 @@
             outline: none;
         }
 
-        /* Rooms Grid */
+        /* Rooms Heat Map */
+        .room-heat-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .room-filter-chip,
+        .floor-tab {
+            border: 1px solid var(--c-border);
+            border-radius: 6px;
+            background: #fff;
+            color: var(--c-muted);
+            font: 700 .82rem Inter, sans-serif;
+            padding: 8px 12px;
+            cursor: pointer;
+            transition: background .16s ease, border-color .16s ease, color .16s ease, transform .16s ease;
+        }
+
+        .room-filter-chip:hover,
+        .floor-tab:hover,
+        .room-filter-chip.active,
+        .floor-tab.active {
+            background: #eef3ff;
+            border-color: #cbd8ff;
+            color: var(--c-primary);
+        }
+
+        .room-filter-chip:focus-visible,
+        .floor-tab:focus-visible,
+        .heat-floor-toggle:focus-visible,
+        .heat-room-tile:focus-visible {
+            outline: 3px solid rgba(37,99,235,.22);
+            outline-offset: 2px;
+        }
+
         .hostel-panels {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 24px;
         }
         
@@ -327,29 +447,249 @@
             border: 1px solid var(--c-border);
             border-radius: 8px;
             padding: 20px;
+            min-width: 0;
+            overflow: visible;
+            box-shadow: 0 10px 30px rgba(15,23,42,.04);
         }
-        
-        .rooms-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+
+        .heat-panel-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
             gap: 12px;
-            margin-top: 16px;
+            margin-bottom: 16px;
         }
-        
-        .room-card {
+
+        .heat-panel-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .heat-hostel-icon {
+            width: 34px;
+            height: 34px;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #eef3ff;
+            color: var(--c-primary);
+            font-weight: 900;
+        }
+
+        .heat-hostel-icon.girls {
+            background: #fff1f4;
+            color: #e11d48;
+        }
+
+        .heat-panel-title h2 {
+            margin: 0;
+            font-size: 1rem;
+            color: var(--c-dark);
+            line-height: 1.2;
+            overflow-wrap: anywhere;
+        }
+
+        .heat-count-badge {
+            flex: 0 0 auto;
+            padding: 7px 10px;
+            border-radius: 6px;
+            background: #f4f6fb;
+            color: var(--c-muted);
+            font-size: .78rem;
+            font-weight: 800;
+        }
+
+        .floor-tabs {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--c-border);
+            scrollbar-width: thin;
+        }
+
+        .rooms-grid {
+            margin-top: 12px;
+        }
+
+        .heat-floor {
+            border-bottom: 1px solid var(--c-border);
+            padding: 10px 0;
+        }
+
+        .heat-floor:last-child {
+            border-bottom: 0;
+        }
+
+        .heat-floor-toggle {
+            width: 100%;
+            border: 0;
+            background: transparent;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 4px 0 10px;
+            color: var(--c-dark);
+            cursor: pointer;
+            font-weight: 800;
+        }
+
+        .heat-floor-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .heat-floor-label::before {
+            content: ">";
+            display: inline-block;
+            color: var(--c-primary);
+            transition: transform .16s ease;
+        }
+
+        .heat-floor.expanded .heat-floor-label::before {
+            transform: rotate(90deg);
+        }
+
+        .heat-floor-summary {
+            color: var(--c-muted);
+            font-size: .82rem;
+            font-weight: 800;
+        }
+
+        .heat-room-grid {
+            display: none;
+            grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+            gap: 10px;
+        }
+
+        .heat-floor.expanded .heat-room-grid {
+            display: grid;
+        }
+
+        .heat-room-tile {
+            position: relative;
+            min-height: 58px;
             border: 1px solid var(--c-border);
             border-radius: 6px;
-            padding: 12px;
-            text-align: center;
-            background: white;
+            padding: 10px 11px;
+            background: #fff;
+            text-align: left;
+            cursor: default;
+            transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease, background .16s ease;
         }
-        
-        .room-card.green { border-top: 3px solid #1e8e3e; }
-        .room-card.amber { border-top: 3px solid #f29900; }
-        .room-card.red { border-top: 3px solid #d93025; }
-        
-        .room-no { font-weight: 600; font-size: 1.1rem; }
-        .room-stats { font-size: 0.75rem; color: var(--c-muted); margin-top: 4px; }
+
+        .heat-room-tile:hover,
+        .heat-room-tile:focus-visible {
+            transform: translateY(-3px) scale(1.015);
+            box-shadow: 0 12px 26px rgba(15,23,42,.12);
+            z-index: 2;
+        }
+
+        .heat-room-tile.full {
+            border-color: #ffd8d8;
+            background: #fff8f8;
+            color: #991b1b;
+        }
+
+        .heat-room-tile.partial {
+            border-color: #ffe7b3;
+            background: #fffaf0;
+            color: #9a5b00;
+        }
+
+        .heat-room-tile.available {
+            border-color: #d7efe4;
+            background: #f6fcf9;
+            color: #134e4a;
+        }
+
+        .heat-room-number {
+            display: block;
+            font-weight: 900;
+            font-size: .88rem;
+            color: currentColor;
+            margin-bottom: 6px;
+        }
+
+        .heat-room-occupancy {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--c-muted);
+            font-size: .78rem;
+            font-weight: 800;
+        }
+
+        .heat-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .heat-room-tile::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            left: 50%;
+            bottom: calc(100% + 8px);
+            transform: translateX(-50%) translateY(4px);
+            width: max-content;
+            max-width: min(260px, 80vw);
+            padding: 8px 10px;
+            border-radius: 6px;
+            background: hsl(228,30%,10%);
+            color: #fff;
+            font-size: .72rem;
+            line-height: 1.35;
+            white-space: normal;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .16s ease, transform .16s ease;
+        }
+
+        .heat-room-tile:hover::after,
+        .heat-room-tile:focus-visible::after {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .heat-empty-state {
+            padding: 24px;
+            border: 1px dashed var(--c-border);
+            border-radius: 8px;
+            color: var(--c-muted);
+            text-align: center;
+            font-weight: 600;
+        }
+
+        @media (max-width: 1100px) {
+            .hostel-panels {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .hostel-panel {
+                padding: 14px;
+            }
+            .heat-panel-head {
+                align-items: flex-start;
+            }
+            .heat-room-grid {
+                grid-template-columns: repeat(auto-fit, minmax(78px, 1fr));
+                gap: 8px;
+            }
+            .heat-room-tile {
+                min-height: 54px;
+                padding: 9px;
+            }
+        }
 
         /* Forms */
         .form-group {
@@ -443,6 +783,35 @@
             flex: 1;
         }
 
+        .document-confirm-summary {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin: 16px 0 8px;
+            text-align: left;
+        }
+
+        .document-confirm-metric {
+            border: 1px solid var(--c-border);
+            border-radius: 6px;
+            padding: 10px;
+            background: #f8fafc;
+        }
+
+        .document-confirm-value {
+            display: block;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--c-dark);
+        }
+
+        .document-confirm-label {
+            display: block;
+            margin-top: 2px;
+            font-size: .76rem;
+            color: var(--c-muted);
+        }
+
         .notices-list {
             display: flex;
             flex-direction: column;
@@ -487,29 +856,48 @@
         .modal-actions { display: flex; gap: 12px; justify-content: center; }
 
         .loader {
-            border: 4px solid var(--c-border);
-            border-top: 4px solid var(--c-primary);
+            border: 2px solid rgba(35,53,113,.16);
+            border-top: 2px solid var(--c-primary);
             border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 16px;
-            display: none;
+            width: 22px;
+            height: 22px;
+            animation: spin .75s linear infinite;
+            margin: 0 auto;
+            display: inline-block;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
-<body>
+<body class="admin-locked">
+
+    <div class="admin-login-state" id="adminLoginState">
+        <div class="admin-login-card">
+            <a class="admin-login-brand" href="index.html">
+                <img src="assets/logo/ipu-logo.png" alt="GGSIPU Logo" onerror="this.style.display='none'">
+                <span>GGSIPU Hostel Allocator</span>
+            </a>
+            <h1 style="font-size:1.35rem; margin-bottom:8px; color:var(--c-dark);">Admin Login</h1>
+            <p style="color:var(--c-muted); font-size:.92rem; margin-bottom:24px;">Sign in to manage verification, rooms, notices, and allocation.</p>
+            <form id="adminLoginForm">
+                <div class="form-group">
+                    <label for="adminPassword">Admin Password</label>
+                    <input class="form-control" id="adminPassword" type="password" autocomplete="current-password" required>
+                </div>
+                <button class="btn-primary" type="submit" style="width:100%;">Login</button>
+            </form>
+            <a href="index.html" class="admin-back-home" aria-label="Back to main page">← Back to Main Page</a>
+        </div>
+    </div>
 
     <!-- Navbar -->
     <nav class="navbar">
-        <div class="navbar-brand">
+        <a class="navbar-brand" href="index.html">
             <img src="assets/logo/ipu-logo.png" alt="GGSIPU Logo" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDQwIDQwIj48Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIyMCIgZmlsbD0iIzIyMzQ2OCIvPjx0ZXh0IHg9IjIwIiB5PSIyNSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE2IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+SVBVPC90ZXh0Pjwvc3ZnPg=='">
             GGSIPU Hostel Allocator
-        </div>
+        </a>
         <div class="navbar-right">
             <span class="badge">Admin Panel</span>
-            <button class="btn-outline">Logout</button>
+            <button class="btn-outline" id="adminLogoutBtn" type="button">Logout</button>
         </div>
     </nav>
 
@@ -704,19 +1092,15 @@
             <div class="page-header">
                 <h1 class="page-title">Room Management</h1>
             </div>
+
+            <div class="room-heat-toolbar" id="roomOccupancyFilters"></div>
             
-            <div class="hostel-panels">
-                <div class="hostel-panel">
-                    <h2 class="chart-title">Boys Hostel (BH-1)</h2>
-                    <div class="rooms-grid" id="bh-rooms">
-                        <!-- Populated via JS -->
-                    </div>
+            <div class="hostel-panels" id="roomHeatMapRoot">
+                <div class="hostel-panel" id="bh-rooms">
+                    <!-- Populated via JS -->
                 </div>
-                <div class="hostel-panel">
-                    <h2 class="chart-title">Girls Hostel (GH-1)</h2>
-                    <div class="rooms-grid" id="gh-rooms">
-                        <!-- Populated via JS -->
-                    </div>
+                <div class="hostel-panel" id="gh-rooms">
+                    <!-- Populated via JS -->
                 </div>
             </div>
         </section>
@@ -756,11 +1140,19 @@
                     <h2 class="chart-title">Post New Notice</h2>
                     <div class="form-group">
                         <label>Title</label>
-                        <input type="text" class="form-control" placeholder="Notice title">
+                        <input type="text" class="form-control" id="noticeTitle" placeholder="Notice title">
                     </div>
                     <div class="form-group">
                         <label>Body</label>
-                        <textarea class="form-control" placeholder="Notice content..."></textarea>
+                        <textarea class="form-control" id="noticeBody" placeholder="Notice content..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Post To</label>
+                        <select class="form-control" id="noticeAudience">
+                            <option value="Homepage">Homepage Latest Updates</option>
+                            <option value="Student">Student Notice Board</option>
+                            <option value="Both">Both</option>
+                        </select>
                     </div>
                     <button class="btn-primary" onclick="postNotice()">Post Notice</button>
                 </div>
@@ -795,7 +1187,28 @@
                 <h1 class="page-title">System Settings</h1>
             </div>
             <div class="chart-card">
-                <p style="color: var(--c-muted);">Configuration options for the allocation algorithm, timelines, and fee structures will be available here.</p>
+                <div class="grid-form" style="display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:16px;">
+                    <div class="form-group">
+                        <label for="settingRegistrationOpen">Registration Open</label>
+                        <select class="form-control" id="settingRegistrationOpen">
+                            <option value="true">Open</option>
+                            <option value="false">Closed</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="settingCloseDate">Registration Close Date</label>
+                        <input class="form-control" id="settingCloseDate" type="date">
+                    </div>
+                    <div class="form-group">
+                        <label for="settingContact">Hostel Office Contact</label>
+                        <textarea class="form-control" id="settingContact" placeholder="Official contact/help text for students"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="settingFeeNote">Mess/Fee Note</label>
+                        <textarea class="form-control" id="settingFeeNote" placeholder="Fee note shown to students/chatbot"></textarea>
+                    </div>
+                </div>
+                <button class="btn-primary" onclick="savePublicSettings()">Save Settings</button>
             </div>
         </section>
         
@@ -806,7 +1219,7 @@
         <div class="modal-content">
             <div id="modal-step-1">
                 <h2 class="modal-title">Run Allocation Engine</h2>
-                <p class="modal-body">Are you sure you want to run the allocation engine? This will process all pending applications based on the defined priority rules.</p>
+                <p class="modal-body" id="allocationPreviewText">Checking allocation preview...</p>
                 <div class="modal-actions">
                     <button class="btn-outline" onclick="closeModal()">Cancel</button>
                     <button class="btn-accent" onclick="runEngine()">Confirm & Run</button>
@@ -850,9 +1263,35 @@
                 </div>
                 <div class="modal-actions" style="margin:0;">
                     <button class="btn-outline" onclick="closeDocumentReviewModal()">Cancel</button>
-                    <button class="btn-primary" onclick="saveDocumentVerification()">Save Verification</button>
+                    <button class="btn-primary" id="saveDocumentVerificationBtn" type="button">Save Verification</button>
                     <button class="btn-accent" id="sendDocDiscrepancyBtn" onclick="sendSelectedDiscrepancyEmail()">Send Discrepancy Mail</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="documentConfirmModal" style="z-index:1100;">
+        <div class="modal-content" style="max-width: 460px;">
+            <h2 class="modal-title">Confirm Verification</h2>
+            <p class="modal-body" id="documentConfirmMessage" style="margin-bottom:8px;">Confirm document verification before saving.</p>
+            <div class="document-confirm-summary">
+                <div class="document-confirm-metric">
+                    <span class="document-confirm-value" id="documentConfirmVerifiedCount">0</span>
+                    <span class="document-confirm-label">Verified</span>
+                </div>
+                <div class="document-confirm-metric">
+                    <span class="document-confirm-value" id="documentConfirmDiscrepancyCount">0</span>
+                    <span class="document-confirm-label">Discrepancy</span>
+                </div>
+                <div class="document-confirm-metric">
+                    <span class="document-confirm-value" id="documentConfirmPendingCount">0</span>
+                    <span class="document-confirm-label">Pending</span>
+                </div>
+            </div>
+            <p class="modal-body" id="documentConfirmWarning" style="font-size:.86rem; margin:12px 0 18px;"></p>
+            <div class="modal-actions">
+                <button class="btn-outline" id="cancelDocumentConfirmBtn" type="button">Review Again</button>
+                <button class="btn-primary" id="confirmDocumentSaveBtn" type="button">Confirm & Save</button>
             </div>
         </div>
     </div>
@@ -862,9 +1301,13 @@
         // SPA Navigation
         const menuItems = document.querySelectorAll('.menu-item');
         const sections = document.querySelectorAll('.section');
+        const ADMIN_SESSION_KEY = 'ggsipu_admin_session';
+        const adminLoginForm = document.getElementById('adminLoginForm');
+        const adminLogoutBtn = document.getElementById('adminLogoutBtn');
 
         menuItems.forEach(item => {
             item.addEventListener('click', () => {
+                if (!isAdminLoggedIn()) return;
                 const target = item.getAttribute('data-target');
                 
                 // Update active state in sidebar
@@ -888,6 +1331,46 @@
         let currentData = [];
         let currentStudentsData = [];
         let currentDocumentStudent = null;
+        let pendingDocumentConfirmation = null;
+        let currentRoomsData = [];
+        let roomOccupancyFilter = 'all';
+        let roomFloorFilters = { boys: 'all', girls: 'all' };
+
+        function isAdminLoggedIn() {
+            return sessionStorage.getItem(ADMIN_SESSION_KEY) === 'true';
+        }
+
+        function setAdminLocked(isLocked) {
+            document.body.classList.toggle('admin-locked', isLocked);
+        }
+
+        adminLoginForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const password = document.getElementById('adminPassword').value;
+            const button = adminLoginForm.querySelector('button');
+            button.disabled = true;
+            button.textContent = 'Checking...';
+            try {
+                const res = await HostelAPI.adminLogin({ password });
+                if (!res || !res.success) throw new Error('Invalid admin password.');
+                sessionStorage.setItem(ADMIN_SESSION_KEY, 'true');
+                setAdminLocked(false);
+                showAdminToast('Admin login successful.', 'success');
+                await loadSectionData('dashboard');
+            } catch (err) {
+                showAdminToast(err.message || 'Admin login failed.', 'error');
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Login';
+            }
+        });
+
+        adminLogoutBtn.addEventListener('click', () => {
+            sessionStorage.removeItem(ADMIN_SESSION_KEY);
+            document.getElementById('adminPassword').value = '';
+            setAdminLocked(true);
+            showAdminToast('Logged out.', 'info');
+        });
 
         async function loadSectionData(target) {
             try {
@@ -915,6 +1398,12 @@
                     const data = await HostelAPI.getGrievances();
                     currentData = data;
                     renderGrievances(data);
+                } else if (target === 'notices') {
+                    const data = await HostelAPI.getNotices();
+                    currentData = data;
+                    renderAdminNotices(data);
+                } else if (target === 'settings') {
+                    await loadPublicSettings();
                 }
             } catch (err) {
                 console.error(err);
@@ -922,7 +1411,8 @@
         }
 
         window.addEventListener('DOMContentLoaded', () => {
-            loadSectionData('dashboard');
+            setAdminLocked(!isAdminLoggedIn());
+            if (isAdminLoggedIn()) loadSectionData('dashboard');
         });
 
         // Modal Logic
@@ -931,11 +1421,19 @@
         const s2 = document.getElementById('modal-step-2');
         const s3 = document.getElementById('modal-step-3');
 
-        function openModal() {
+        async function openModal() {
             s1.style.display = 'block';
             s2.style.display = 'none';
             s3.style.display = 'none';
+            const previewEl = document.getElementById('allocationPreviewText');
+            previewEl.textContent = 'Checking allocation preview...';
             modal.classList.add('active');
+            try {
+                const preview = await HostelAPI.getAllocationPreview();
+                previewEl.textContent = `Ready to process ${preview.verifiedPending || 0} verified pending application(s). ${preview.unverifiedPending || 0} pending application(s) will be skipped because documents are not verified. Available seats: Boys ${preview.availableBoysSeats || 0}, Girls ${preview.availableGirlsSeats || 0}.`;
+            } catch (err) {
+                previewEl.textContent = 'Preview unavailable. The allocation engine will still skip unverified documents and already processed students.';
+            }
         }
 
         function closeModal() {
@@ -948,6 +1446,7 @@
             
             try {
                 const res = await HostelAPI.runAllocation();
+                if (res && res.success === false) throw new Error(res.message || res.error || 'Allocation failed.');
                 s2.style.display = 'none';
                 s3.style.display = 'block';
                 
@@ -1371,6 +1870,62 @@
             };
         }
 
+        function getDocumentReviewSummary(payload) {
+            const summary = {
+                verified: 0,
+                discrepancy: 0,
+                pending: 0
+            };
+
+            Object.values(payload.documents || {}).forEach(status => {
+                const normalized = String(status || '').toLowerCase();
+                if (normalized === 'verified') summary.verified += 1;
+                if (normalized === 'discrepancy' || normalized === 'missing') summary.discrepancy += 1;
+                if (normalized === 'pending' || !normalized) summary.pending += 1;
+            });
+
+            return summary;
+        }
+
+        function requestDocumentVerificationConfirmation(payload) {
+            const modal = document.getElementById('documentConfirmModal');
+            if (!modal) return Promise.resolve(true);
+
+            const studentName = getStudentValue(currentDocumentStudent, 'Name') || 'this student';
+            const appId = payload.ApplicationID || payload.EnrollmentNo || '';
+            const summary = getDocumentReviewSummary(payload);
+            const statusBadge = `<span class="status-badge ${getDocumentBadgeClass(payload.DocumentStatus)}">${escapeHtml(payload.DocumentStatus)}</span>`;
+
+            document.getElementById('documentConfirmMessage').innerHTML =
+                `Save document review for <strong>${escapeHtml(studentName)}</strong>${appId ? ` (${escapeHtml(appId)})` : ''} as ${statusBadge}?`;
+            document.getElementById('documentConfirmVerifiedCount').textContent = summary.verified;
+            document.getElementById('documentConfirmDiscrepancyCount').textContent = summary.discrepancy;
+            document.getElementById('documentConfirmPendingCount').textContent = summary.pending;
+
+            const warning = document.getElementById('documentConfirmWarning');
+            if (payload.DocumentStatus === 'Verified') {
+                warning.textContent = 'This will mark the student documents as verified and make the record eligible for allocation.';
+            } else if (payload.DocumentStatus === 'Discrepancy') {
+                warning.textContent = 'This will save discrepancies. You can send the discrepancy mail after saving.';
+            } else {
+                warning.textContent = 'Some required documents are still pending. The student will not be treated as fully verified.';
+            }
+
+            modal.classList.add('active');
+            return new Promise(resolve => {
+                pendingDocumentConfirmation = resolve;
+            });
+        }
+
+        function resolveDocumentVerificationConfirmation(confirmed) {
+            const modal = document.getElementById('documentConfirmModal');
+            if (modal) modal.classList.remove('active');
+            if (pendingDocumentConfirmation) {
+                pendingDocumentConfirmation(confirmed);
+                pendingDocumentConfirmation = null;
+            }
+        }
+
         function refreshDocumentStatusPreview() {
             const payload = currentDocumentStudent ? collectDocumentReviewPayload() : { DocumentStatus: 'Pending' };
             const badge = document.getElementById('docOverallStatusPreview');
@@ -1401,18 +1956,34 @@
             }
         }
 
-        async function saveDocumentVerification() {
-            if (!currentDocumentStudent) return;
+        async function confirmAndSaveDocumentVerification() {
+            if (!currentDocumentStudent) return false;
             const payload = collectDocumentReviewPayload();
+            const confirmed = await requestDocumentVerificationConfirmation(payload);
+            if (!confirmed) return false;
+            return saveDocumentVerification({ payload, skipConfirmation: true, closeOnSuccess: true });
+        }
+
+        async function saveDocumentVerification(options = {}) {
+            if (!currentDocumentStudent) return;
+            const payload = options.payload || collectDocumentReviewPayload();
+            if (!options.skipConfirmation) {
+                const confirmed = await requestDocumentVerificationConfirmation(payload);
+                if (!confirmed) return false;
+            }
             try {
                 const res = await HostelAPI.updateDocumentVerification(payload);
                 if (res && res.error) throw new Error(res.error);
                 showAdminToast('Document verification saved.', 'success');
                 await loadSectionData('students');
-                const modal = document.getElementById('documentReviewModal');
-                if (modal.classList.contains('active')) {
-                    currentDocumentStudent = currentStudentsData.find(s => String(getStudentValue(s, 'EnrollmentNo')).trim() === String(payload.EnrollmentNo).trim()) || currentDocumentStudent;
-                    refreshDocumentStatusPreview();
+                if (options.closeOnSuccess) {
+                    closeDocumentReviewModal();
+                } else {
+                    const modal = document.getElementById('documentReviewModal');
+                    if (modal.classList.contains('active')) {
+                        currentDocumentStudent = currentStudentsData.find(s => String(getStudentValue(s, 'EnrollmentNo')).trim() === String(payload.EnrollmentNo).trim()) || currentDocumentStudent;
+                        refreshDocumentStatusPreview();
+                    }
                 }
                 return true;
             } catch (err) {
@@ -1430,7 +2001,7 @@
                 return;
             }
 
-            const saved = await saveDocumentVerification();
+            const saved = await saveDocumentVerification({ skipConfirmation: true, closeOnSuccess: false });
             if (!saved) return;
             try {
                 const res = await HostelAPI.sendDiscrepancyEmail({
@@ -1463,34 +2034,285 @@
         function renderRooms(rooms) {
             const bhRooms = document.getElementById('bh-rooms');
             const ghRooms = document.getElementById('gh-rooms');
-            bhRooms.innerHTML = '';
-            ghRooms.innerHTML = '';
-            
-            rooms.forEach(r => {
-                let color = r.occupancy === 0 ? 'green' : (r.occupancy === r.capacity ? 'red' : 'amber');
-                const html = `<div class="room-card ${color}">
-                    <div class="room-no">${r.number}</div>
-                    <div class="room-stats">${r.occupancy}/${r.capacity} Occ</div>
+            currentRoomsData = Array.isArray(rooms) ? rooms : [];
+
+            if (!currentRoomsData.length) {
+                bhRooms.innerHTML = '<p style="color:var(--c-muted);">No boys hostel rooms found.</p>';
+                ghRooms.innerHTML = '<p style="color:var(--c-muted);">No girls hostel rooms found.</p>';
+                renderRoomOccupancyFilters();
+                return;
+            }
+
+            applyRoomHeatFilters();
+        }
+
+        function getRoomOccupancyMetrics(room) {
+            const capacity = Number(getStudentValue(room, 'Capacity')) || 0;
+            const occupied = Number(getStudentValue(room, 'Occupied')) || 0;
+            const rawVacant = getStudentValue(room, 'VacantBeds');
+            const vacant = rawVacant !== '' && rawVacant !== undefined && rawVacant !== null
+                ? Number(rawVacant) || 0
+                : Math.max(0, capacity - occupied);
+            return { capacity, occupied, vacant };
+        }
+
+        function getRoomOccupancyState(room) {
+            const { capacity, occupied, vacant } = getRoomOccupancyMetrics(room);
+            if (occupied <= 0) return 'available';
+            if (capacity > 0 && (occupied >= capacity || vacant <= 0)) return 'full';
+            return 'partial';
+        }
+
+        function getRoomFloor(room) {
+            const floorValue = getStudentValue(room, 'Floor');
+            if (floorValue) return String(floorValue).trim();
+            const roomNo = getStudentValue(room, 'RoomNumber') || getStudentValue(room, 'RoomID') || '';
+            const match = String(roomNo).match(/(\d+)/);
+            if (!match) return 'Floor 1';
+            const numeric = match[1];
+            const floor = numeric.length >= 3 ? Number(numeric.slice(0, -2)) : 1;
+            return `Floor ${Number.isFinite(floor) && floor > 0 ? floor : 1}`;
+        }
+
+        function getRoomHostelGroup(room) {
+            const hostelType = String(getStudentValue(room, 'HostelType') || '').toLowerCase();
+            const hostelName = String(getStudentValue(room, 'HostelName') || '').toLowerCase();
+            if (hostelType.includes('girl') || hostelName.includes('girl')) return 'girls';
+            return 'boys';
+        }
+
+        function getRoomDisplayNumber(room, groupKey) {
+            const roomNo = getStudentValue(room, 'RoomNumber') || getStudentValue(room, 'RoomID') || '-';
+            const cleaned = String(roomNo).replace(/^(B|G)\s*[- ]?/i, '').trim();
+            const prefix = groupKey === 'girls' ? 'G' : 'B';
+            return `${prefix} - ${cleaned || roomNo}`;
+        }
+
+        function sortRoomsByNumber(a, b) {
+            const ar = getStudentValue(a, 'RoomNumber') || getStudentValue(a, 'RoomID') || '';
+            const br = getStudentValue(b, 'RoomNumber') || getStudentValue(b, 'RoomID') || '';
+            return String(ar).localeCompare(String(br), undefined, { numeric: true });
+        }
+
+        function sortFloors(a, b) {
+            const an = Number(String(a).match(/\d+/)?.[0] || 0);
+            const bn = Number(String(b).match(/\d+/)?.[0] || 0);
+            if (an !== bn) return an - bn;
+            return String(a).localeCompare(String(b), undefined, { numeric: true });
+        }
+
+        function renderRoomOccupancyFilters() {
+            const container = document.getElementById('roomOccupancyFilters');
+            if (!container) return;
+            const filters = [
+                ['all', 'All'],
+                ['available', 'Available'],
+                ['partial', 'Partially Occupied'],
+                ['full', 'Full']
+            ];
+            const counts = currentRoomsData.reduce((acc, room) => {
+                const state = getRoomOccupancyState(room);
+                acc.all += 1;
+                acc[state] = (acc[state] || 0) + 1;
+                return acc;
+            }, { all: 0, available: 0, partial: 0, full: 0 });
+
+            container.innerHTML = filters.map(([key, label]) => `
+                <button type="button" class="room-filter-chip ${roomOccupancyFilter === key ? 'active' : ''}" data-room-occupancy-filter="${key}">
+                    ${escapeHtml(label)} (${counts[key] || 0})
+                </button>
+            `).join('');
+
+            container.querySelectorAll('[data-room-occupancy-filter]').forEach(button => {
+                button.addEventListener('click', () => {
+                    roomOccupancyFilter = button.getAttribute('data-room-occupancy-filter') || 'all';
+                    applyRoomHeatFilters();
+                });
+            });
+        }
+
+        function applyRoomHeatFilters() {
+            renderRoomOccupancyFilters();
+            renderRoomHeatMap(currentRoomsData);
+        }
+
+        function renderRoomHeatMap(rooms) {
+            const groups = {
+                boys: { key: 'boys', label: 'Boys Hostel', fallback: 'Boys Hostel', rooms: [] },
+                girls: { key: 'girls', label: 'Girls Hostel', fallback: 'Girls Hostel', rooms: [] }
+            };
+
+            rooms.forEach(room => {
+                const key = getRoomHostelGroup(room);
+                groups[key].rooms.push(room);
+            });
+
+            document.getElementById('bh-rooms').innerHTML = renderHostelHeatPanel(groups.boys);
+            document.getElementById('gh-rooms').innerHTML = renderHostelHeatPanel(groups.girls);
+            attachRoomHeatEvents();
+        }
+
+        function renderHostelHeatPanel(group) {
+            const hostelName = getStudentValue(group.rooms[0] || {}, 'HostelName') || group.fallback;
+            const floors = Array.from(new Set(group.rooms.map(getRoomFloor))).sort(sortFloors);
+            let selectedFloor = roomFloorFilters[group.key] || 'all';
+            if (selectedFloor !== 'all' && !floors.includes(selectedFloor)) {
+                selectedFloor = 'all';
+                roomFloorFilters[group.key] = 'all';
+            }
+            const filteredRooms = group.rooms.filter(room => {
+                const state = getRoomOccupancyState(room);
+                const floor = getRoomFloor(room);
+                const occupancyMatch = roomOccupancyFilter === 'all' || state === roomOccupancyFilter;
+                const floorMatch = selectedFloor === 'all' || floor === selectedFloor;
+                return occupancyMatch && floorMatch;
+            });
+
+            const roomsByFloor = filteredRooms.reduce((acc, room) => {
+                const floor = getRoomFloor(room);
+                if (!acc[floor]) acc[floor] = [];
+                acc[floor].push(room);
+                return acc;
+            }, {});
+
+            const floorTabs = ['all', ...floors].map(floor => {
+                const active = selectedFloor === floor;
+                const label = floor === 'all' ? 'All' : floor;
+                return `<button type="button" class="floor-tab ${active ? 'active' : ''}" data-room-group="${group.key}" data-room-floor="${escapeHtml(floor)}">${escapeHtml(label)}</button>`;
+            }).join('');
+
+            const floorSections = Object.keys(roomsByFloor).sort(sortFloors).map((floor, index) => {
+                const floorRooms = roomsByFloor[floor].sort(sortRoomsByNumber);
+                const occupied = floorRooms.reduce((sum, room) => sum + getRoomOccupancyMetrics(room).occupied, 0);
+                const capacity = floorRooms.reduce((sum, room) => sum + getRoomOccupancyMetrics(room).capacity, 0);
+                const expanded = selectedFloor !== 'all' || index === 0;
+                const tiles = floorRooms.map(room => renderRoomTile(room, group.key, hostelName, floor)).join('');
+                return `<div class="heat-floor ${expanded ? 'expanded' : ''}">
+                    <button type="button" class="heat-floor-toggle" data-floor-toggle>
+                        <span class="heat-floor-label">${escapeHtml(floor)}</span>
+                        <span class="heat-floor-summary">${occupied} / ${capacity}</span>
+                    </button>
+                    <div class="heat-room-grid">${tiles}</div>
                 </div>`;
-                if (r.hostel.includes('Boys')) bhRooms.innerHTML += html;
-                else ghRooms.innerHTML += html;
+            }).join('');
+
+            const emptyState = filteredRooms.length
+                ? ''
+                : '<div class="heat-empty-state">No rooms match the selected filters.</div>';
+
+            return `<div class="heat-panel-head">
+                    <div class="heat-panel-title">
+                        <span class="heat-hostel-icon ${group.key === 'girls' ? 'girls' : ''}" aria-hidden="true">${group.key === 'girls' ? 'G' : 'B'}</span>
+                        <h2>${escapeHtml(hostelName)}</h2>
+                    </div>
+                    <span class="heat-count-badge">${group.rooms.length} Rooms</span>
+                </div>
+                <div class="floor-tabs">${floorTabs}</div>
+                <div class="rooms-grid">${floorSections || emptyState}</div>`;
+        }
+
+        function renderRoomTile(room, groupKey, hostelName, floor) {
+            const state = getRoomOccupancyState(room);
+            const { capacity, occupied, vacant } = getRoomOccupancyMetrics(room);
+            const roomNumber = getRoomDisplayNumber(room, groupKey);
+            const tooltip = `${roomNumber} - ${hostelName} - ${floor} - ${occupied}/${capacity} occupied - ${vacant} vacant`;
+            return `<button type="button" class="heat-room-tile ${state}" data-tooltip="${escapeHtml(tooltip)}" aria-label="${escapeHtml(tooltip)}">
+                <span class="heat-room-number">${escapeHtml(roomNumber)}</span>
+                <span class="heat-room-occupancy"><span class="heat-dot"></span>${occupied}/${capacity}</span>
+            </button>`;
+        }
+
+        function attachRoomHeatEvents() {
+            document.querySelectorAll('[data-room-floor]').forEach(button => {
+                button.addEventListener('click', () => {
+                    const group = button.getAttribute('data-room-group');
+                    const floor = button.getAttribute('data-room-floor') || 'all';
+                    if (group) roomFloorFilters[group] = floor;
+                    renderRoomHeatMap(currentRoomsData);
+                });
+            });
+            document.querySelectorAll('[data-floor-toggle]').forEach(button => {
+                button.addEventListener('click', () => {
+                    button.closest('.heat-floor')?.classList.toggle('expanded');
+                });
             });
         }
 
         function renderGrievances(grievances) {
             const gBody = document.getElementById('grievances-tbody');
             gBody.innerHTML = '';
+            if (!grievances || grievances.length === 0) {
+                gBody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#888; padding:24px;">No grievances submitted yet.</td></tr>';
+                return;
+            }
             grievances.forEach(g => {
-                const b = g.status === 'Resolved' ? 'status-allocated' : (g.status === 'Waitlisted' ? 'status-waitlisted' : 'status-pending');
+                const ticketId = getStudentValue(g, 'TicketID') || '-';
+                const appId = getStudentValue(g, 'ApplicationID') || '-';
+                const date = getStudentValue(g, 'Date') || '-';
+                const subject = getStudentValue(g, 'Subject') || '-';
+                const status = getStudentValue(g, 'Status') || 'Open';
+                const b = status === 'Resolved' ? 'status-allocated' : 'status-pending';
                 gBody.innerHTML += `<tr>
-                    <td>${g.id}</td><td>${g.enrollmentNo}</td><td>${g.date}</td><td>${g.subject}</td>
-                    <td><span class="status-badge ${b}">${g.status}</span></td>
+                    <td>${escapeHtml(ticketId)}</td><td>${escapeHtml(appId)}</td><td>${escapeHtml(date)}</td><td>${escapeHtml(subject)}</td>
+                    <td><span class="status-badge ${b}">${escapeHtml(status)}</span></td>
                     <td>
-                        <button class="btn-outline" style="padding:4px 8px; font-size:0.8rem;">View</button>
-                        ${g.status !== 'Resolved' ? `<button class="btn-primary" style="padding:4px 8px; font-size:0.8rem;" onclick="HostelAPI.resolveGrievance({id: '${g.id}'}).then(() => loadSectionData('grievances'))">Resolve</button>` : ''}
+                        <button class="btn-outline" style="padding:4px 8px; font-size:0.8rem;" onclick="viewGrievance('${encodeURIComponent(ticketId)}')">View</button>
+                        ${status !== 'Resolved' ? `<button class="btn-primary" style="padding:4px 8px; font-size:0.8rem;" onclick="resolveGrievanceTicket('${encodeURIComponent(ticketId)}')">Resolve</button>` : ''}
                     </td>
                 </tr>`;
             });
+        }
+
+        function viewGrievance(encodedTicketId) {
+            const ticketId = decodeURIComponent(encodedTicketId || '');
+            const grievance = (currentData || []).find(g => String(getStudentValue(g, 'TicketID')) === ticketId);
+            if (!grievance) return;
+            const details = [
+                `Ticket: ${getStudentValue(grievance, 'TicketID')}`,
+                `Student: ${getStudentValue(grievance, 'StudentName') || '-'}`,
+                `Email: ${getStudentValue(grievance, 'StudentEmail') || '-'}`,
+                `Category: ${getStudentValue(grievance, 'Category') || '-'}`,
+                `Subject: ${getStudentValue(grievance, 'Subject') || '-'}`,
+                '',
+                getStudentValue(grievance, 'Description') || ''
+            ].join('\n');
+            alert(details);
+        }
+
+        async function resolveGrievanceTicket(encodedTicketId) {
+            const ticketId = decodeURIComponent(encodedTicketId || '');
+            const response = prompt('Admin response for this grievance:', 'Resolved by hostel administration.');
+            if (response === null) return;
+            try {
+                const res = await HostelAPI.resolveGrievance({ TicketID: ticketId, AdminResponse: response });
+                if (res && res.error) throw new Error(res.error);
+                showAdminToast('Grievance resolved.', 'success');
+                loadSectionData('grievances');
+            } catch (err) {
+                showAdminToast(err.message || 'Failed to resolve grievance.', 'error');
+            }
+        }
+
+        function renderAdminNotices(notices) {
+            const list = document.querySelector('#notices .notices-list');
+            if (!list) return;
+            if (!notices || notices.length === 0) {
+                list.innerHTML = '<p style="color:var(--c-muted);">No active notices posted yet.</p>';
+                return;
+            }
+            list.innerHTML = notices.map(n => {
+                const title = getStudentValue(n, 'Title') || 'Hostel Notice';
+                const body = getStudentValue(n, 'Body') || '';
+                const date = getStudentValue(n, 'PostedAt') || getStudentValue(n, 'Date') || '';
+                const audience = getStudentValue(n, 'Audience') || 'Student';
+                return `<div class="notice-card">
+                    <div>
+                        <div class="notice-title">${escapeHtml(title)}</div>
+                        <div class="notice-date">${escapeHtml(date)} • ${escapeHtml(audience)}</div>
+                        <div style="font-size: 0.9rem; color: var(--c-muted);">${escapeHtml(body)}</div>
+                    </div>
+                </div>`;
+            }).join('');
         }
 
 
@@ -1530,15 +2352,23 @@
     async function postNotice() {
         const title = document.getElementById('noticeTitle') || document.querySelector('input[placeholder="Notice title"]');
         const body  = document.getElementById('noticeBody') || document.querySelector('textarea[placeholder="Notice content..."]');
+        const audience = document.getElementById('noticeAudience');
         if (!title || !body || !title.value.trim()) {
             showAdminToast('Please enter a notice title.', 'error'); return;
         }
         
         try {
-            await HostelAPI.postNotice({ title: title.value, content: body.value });
+            await HostelAPI.postNotice({
+                Title: title.value,
+                Body: body.value,
+                Audience: audience ? audience.value : 'Student',
+                PostedBy: 'Hostel Administration'
+            });
             showAdminToast('✅ Notice posted successfully!', 'success');
             if (title) title.value = '';
             if (body)  body.value  = '';
+            if (audience) audience.value = 'Homepage';
+            loadSectionData('notices');
         } catch(e) {
             showAdminToast('Failed to post notice.', 'error');
         }
@@ -1546,7 +2376,35 @@
 
     // ── Logout ───────────────────────────────────────────────
     function logout() {
-        window.location.href = 'index.html';
+        sessionStorage.removeItem(ADMIN_SESSION_KEY);
+        setAdminLocked(true);
+    }
+
+    async function loadPublicSettings() {
+        try {
+            const settings = await HostelAPI.getSettingsPublic();
+            document.getElementById('settingRegistrationOpen').value = settings.registrationOpen ? 'true' : 'false';
+            document.getElementById('settingCloseDate').value = settings.registrationCloseDate || '';
+            document.getElementById('settingContact').value = settings.hostelOfficeContact || '';
+            document.getElementById('settingFeeNote').value = settings.messFeeNote || '';
+        } catch (err) {
+            showAdminToast('Failed to load settings.', 'error');
+        }
+    }
+
+    async function savePublicSettings() {
+        const updates = [
+            ['REGISTRATION_OPEN', document.getElementById('settingRegistrationOpen').value],
+            ['REGISTRATION_CLOSE_DATE', document.getElementById('settingCloseDate').value],
+            ['HOSTEL_OFFICE_CONTACT', document.getElementById('settingContact').value],
+            ['MESS_FEE_NOTE', document.getElementById('settingFeeNote').value]
+        ];
+        try {
+            await Promise.all(updates.map(([Key, Value]) => HostelAPI.updateSetting({ Key, Value })));
+            showAdminToast('Settings saved.', 'success');
+        } catch (err) {
+            showAdminToast('Failed to save settings.', 'error');
+        }
     }
 
     // ── CSV Export ───────────────────────────────────────────
@@ -1572,6 +2430,21 @@
             console.error(e);
             showAdminToast('Failed to send letters. Make sure you authorized Gmail in Apps Script.', 'error');
         }
+    }
+
+    const saveDocumentVerificationBtn = document.getElementById('saveDocumentVerificationBtn');
+    if (saveDocumentVerificationBtn) {
+        saveDocumentVerificationBtn.addEventListener('click', confirmAndSaveDocumentVerification);
+    }
+
+    const cancelDocumentConfirmBtn = document.getElementById('cancelDocumentConfirmBtn');
+    if (cancelDocumentConfirmBtn) {
+        cancelDocumentConfirmBtn.addEventListener('click', () => resolveDocumentVerificationConfirmation(false));
+    }
+
+    const confirmDocumentSaveBtn = document.getElementById('confirmDocumentSaveBtn');
+    if (confirmDocumentSaveBtn) {
+        confirmDocumentSaveBtn.addEventListener('click', () => resolveDocumentVerificationConfirmation(true));
     }
 
     </script>

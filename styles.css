@@ -217,7 +217,7 @@ h1, h2, h3, h4 {
    ============================================ */
 .scroll-hero {
     /* Tall section = scroll distance for the animation */
-    height: 600vh;
+    height: clamp(2800px, 560vh, 5200px);
     position: relative;
 }
 
@@ -226,7 +226,8 @@ h1, h2, h3, h4 {
     top: 0;
     left: 0;
     width: 100%;
-    height: 100vh;
+    height: 100svh;
+    min-height: 560px;
     overflow: hidden;
     background: var(--c-dark);
     /* Ensure it's a containing block */
@@ -255,11 +256,13 @@ h1, h2, h3, h4 {
     display: flex;
     flex-direction: column;
     justify-content: center;
-    padding: 0 5rem;
+    padding: 0 clamp(1.5rem, 6vw, 5rem);
     padding-top: var(--nav-h);
 }
 
-.overlay-content { max-width: 580px; }
+.overlay-content {
+    width: min(580px, 100%);
+}
 
 .overlay-eyebrow {
     font-size: .85rem;
@@ -274,7 +277,7 @@ h1, h2, h3, h4 {
 }
 
 .overlay-title {
-    font-size: clamp(2.8rem, 5.5vw, 5rem);
+    font-size: clamp(2.35rem, 8vw, 5rem);
     font-weight: 800;
     line-height: 1.05;
     letter-spacing: -0.03em;
@@ -286,7 +289,7 @@ h1, h2, h3, h4 {
 }
 
 .overlay-sub {
-    font-size: 1.05rem;
+    font-size: clamp(.95rem, 2.2vw, 1.05rem);
     color: rgba(255,255,255,.75);
     margin-bottom: 2.5rem;
     opacity: 0;
@@ -856,13 +859,76 @@ h1, h2, h3, h4 {
 }
 
 @media (max-width: 768px) {
-    .navbar { padding: 0 1.5rem; }
-    .nav-links { display: none; }
-    .nav-actions { display: none; }
+    .navbar { padding: 0 1.25rem; }
+    .nav-brand-sub { display: none; }
+    .nav-links,
+    .nav-actions {
+        position: fixed;
+        left: 1rem;
+        right: 1rem;
+        display: none;
+        background: rgba(255,255,255,.98);
+        border: 1px solid var(--c-border);
+        box-shadow: var(--shadow-md);
+        z-index: 1000;
+    }
+    .nav-links {
+        top: calc(var(--nav-h) + .75rem);
+        border-radius: 8px 8px 0 0;
+        flex-direction: column;
+        gap: 0;
+        padding: .45rem;
+        border-bottom: 0;
+    }
+    .nav-links a {
+        display: block;
+        padding: .8rem .85rem;
+        color: var(--c-text);
+    }
+    .nav-links a::after { display: none; }
+    .nav-actions {
+        top: calc(var(--nav-h) + 12.4rem);
+        border-radius: 0 0 8px 8px;
+        flex-direction: column;
+        align-items: stretch;
+        padding: .75rem;
+        gap: .55rem;
+    }
+    .nav-actions .btn {
+        width: 100%;
+        justify-content: center;
+        min-height: 42px;
+    }
+    .navbar.menu-open .nav-links,
+    .navbar.menu-open .nav-actions {
+        display: flex;
+    }
+    .navbar.menu-open .hamburger span:nth-child(1) {
+        transform: translateY(7px) rotate(45deg);
+    }
+    .navbar.menu-open .hamburger span:nth-child(2) {
+        opacity: 0;
+    }
+    .navbar.menu-open .hamburger span:nth-child(3) {
+        transform: translateY(-7px) rotate(-45deg);
+    }
     .hamburger { display: flex; }
 
-    .canvas-overlay { padding: 0 2rem; padding-top: var(--nav-h); }
-    .overlay-title { font-size: 2.4rem; }
+    .scroll-hero { height: clamp(2200px, 460vh, 3600px); }
+    .canvas-sticky { min-height: 520px; }
+    .canvas-overlay {
+        background: linear-gradient(
+            to bottom,
+            rgba(10,12,26,.72) 0%,
+            rgba(10,12,26,.46) 58%,
+            rgba(10,12,26,.16) 100%
+        );
+        justify-content: flex-end;
+        padding: 0 1.5rem 6.5rem;
+        padding-top: var(--nav-h);
+    }
+    .overlay-title { font-size: clamp(2.1rem, 11vw, 3.35rem); }
+    .overlay-sub { margin-bottom: 1.6rem; max-width: 26rem; }
     .overlay-stats { gap: .5rem; }
 
     .about-section, .priority-section, .notices-section { padding: 5rem 1.5rem; }
@@ -897,6 +963,19 @@ h1, h2, h3, h4 {
 }
 
 @media (max-width: 480px) {
+    :root { --nav-h: 64px; }
+    .navbar { padding: 0 1rem; }
+    .logo-img { width: 38px; height: 38px; }
+    .nav-brand-name { font-size: .82rem; max-width: 190px; overflow: hidden; text-overflow: ellipsis; }
+    .scroll-hero { height: clamp(1900px, 420vh, 3000px); }
+    .canvas-sticky { min-height: 500px; }
+    .canvas-overlay { padding-inline: 1rem; padding-bottom: 5.75rem; }
+    .overlay-eyebrow { font-size: .72rem; margin-bottom: .75rem; }
+    .overlay-title { line-height: 1.08; margin-bottom: .85rem; }
+    .overlay-sub { margin-bottom: 1.2rem; }
+    .stat-pill { font-size: .76rem; padding: .4rem .7rem; }
+    .scroll-cue { bottom: 1.35rem; }
+    .scroll-cue-line { height: 36px; }
     .overlay-stats { flex-direction: column; align-items: flex-start; }
     .priority-section { padding-inline: 1rem; }
     .priority-item { padding-left: 0; padding-top: 4.55rem; }
