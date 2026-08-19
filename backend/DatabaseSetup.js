@@ -15,7 +15,7 @@ function setupDatabase() {
     },
     {
       name: 'Rooms',
-      headers: ['RoomID', 'HostelName', 'HostelType', 'Floor', 'RoomNumber', 'Capacity', 'Occupied', 'VacantBeds', 'Status']
+      headers: ['RoomID', 'HostelName', 'HostelType', 'Floor', 'RoomNumber', 'Capacity', 'Occupied', 'VacantBeds', 'Status','MapRoom']
     },
     {
       name: 'Allocations',

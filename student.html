@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Student Portal - GGSIPU Hostel Allocator</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="hostel-map.css">
     <style>
         :root {
             --c-primary: hsl(228, 52%, 29%);
@@ -828,13 +829,10 @@
                         <div class="room-map">
                             <p style="font-weight: 500;" id="mapHostelTitle">East Delhi Campus Hostel</p>
                             <p style="font-size: 13px; margin-top: 4px;">Highlighted cell is your assigned room</p>
-                            <div class="room-grid" id="mapRoomGrid">
-                                <div class="room-cell">101</div>
-                                <div class="room-cell">102</div>
-                                <div class="room-cell">103</div>
-                                <div class="room-cell">104</div>
-                                <div class="room-cell my-room" id="myRoomCell">Assigned</div>
-                                <div class="room-cell">106</div>
+                            <div id="hostelMapMount">
+                                <div class="hostel-map-loading">
+                                    Loading hostel map...
+                                </div>
                             </div>
                         </div>
                         <button class="btn btn-outline" style="width: 100%; margin-top: 16px;" onclick="openModal('transfer-modal')">Request Room Transfer</button>
@@ -1038,6 +1036,11 @@
                     
                     const studentName = statusData.name || 'Student';
                     currentStudentStatus = statusData;
+                    window.currentStudentStatus = statusData;
+
+                    window.dispatchEvent(
+                        new CustomEvent('hostelStudentReady')
+                    );
                     document.querySelector('#dashboard-state .avatar').textContent = studentName[0];
                     const nameSpan = document.querySelector('#dashboard-state .user-info span');
                     if (nameSpan) nameSpan.textContent = studentName;
@@ -1329,6 +1332,7 @@
             loginState.classList.remove('hidden');
             loginForm.reset();
             currentStudentStatus = null;
+            window.currentStudentStatus = null;
             switchTab('overview'); // reset to first tab
             if (window.HostelChatbot) window.HostelChatbot.reset();
         });
@@ -1388,5 +1392,6 @@
             }, 3000);
         }
     </script>
+    <script src="hostel-map.js"></script>
 </body>
 </html>

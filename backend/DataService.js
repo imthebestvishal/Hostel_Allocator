@@ -164,7 +164,10 @@ function submitApplication(data) {
   const pwd = data.PWD || data.pwd || 'No';
   const hostelPref = data.HostelPref || data.hostelPref || '';
   const roommatePref = data.RoommatePreference || data.roommatePref || '';
-
+  const hobbies =
+    data.Hobbies ||
+    data.hobbies ||
+    '';
   const normalizedData = { PWD: pwd, Category: category, ParentsTransferred: parentsTransferred };
   const priority = calculatePriority(normalizedData);
   const timestamp = new Date();
@@ -179,7 +182,7 @@ function submitApplication(data) {
   const row = [
     applicationId, enroll, name, gender, dob, email, phone, aadhaar,
     programme, branch, year, twelfthMarks, category, state, parentsTransferred,
-    distanceKm, pwd, hostelPref, roommatePref, 'Pending', priority, timestamp
+    distanceKm, pwd, hostelPref, roommatePref, 'Pending', priority, timestamp,hobbies
   ];
 
   const docDefaults = {
