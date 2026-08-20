@@ -924,3 +924,782 @@
 
     }
 }
+
+/* =========================================================
+   HOSTEL + FLOOR SELECTORS
+   ========================================================= */
+
+.hostel-map-controls {
+
+    display: grid;
+
+    grid-template-columns:
+        1fr
+        1fr
+        1.5fr;
+
+    gap: 12px;
+
+    margin: 16px 0;
+
+    padding: 14px;
+
+    border:
+        1px solid
+        var(--border);
+
+    border-radius: 12px;
+
+    background:
+        linear-gradient(
+            135deg,
+            #f8faff,
+            #ffffff
+        );
+}
+
+
+.hostel-control {
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 6px;
+
+}
+
+
+.hostel-control label {
+
+    color:
+        var(--muted);
+
+    font-size: 9px;
+
+    font-weight: 800;
+
+    letter-spacing: .1em;
+
+    text-transform: uppercase;
+
+}
+
+
+.hostel-control select {
+
+    width: 100%;
+
+    padding: 10px 12px;
+
+    border:
+        1px solid
+        var(--border);
+
+    border-radius: 9px;
+
+    outline: none;
+
+    background: #fff;
+
+    color:
+        var(--hostel-blue);
+
+    font-size: 12px;
+
+    font-weight: 700;
+
+    cursor: pointer;
+
+}
+
+
+.hostel-control select:focus {
+
+    border-color:
+        var(--hostel-blue);
+
+    box-shadow:
+        0 0 0 3px
+        rgba(35, 53, 113, .10);
+
+}
+
+
+.current-location {
+
+    display: flex;
+
+    flex-direction: column;
+
+    justify-content: center;
+
+    padding-left: 14px;
+
+    border-left:
+        1px solid
+        var(--border);
+
+}
+
+
+.current-location span {
+
+    color:
+        var(--muted);
+
+    font-size: 8px;
+
+    font-weight: 800;
+
+    letter-spacing: .12em;
+
+}
+
+
+.current-location strong {
+
+    margin-top: 4px;
+
+    color:
+        var(--hostel-blue);
+
+    font-size: 13px;
+
+}
+
+
+/* =========================================================
+   TOOLTIP - INTERACTIVE
+   ========================================================= */
+
+.room-tooltip.visible {
+
+    pointer-events: auto;
+
+}
+
+
+.room-tooltip.pinned {
+
+    pointer-events: auto;
+
+}
+
+
+.room-location {
+
+    display: block;
+
+    margin-top: 3px;
+
+    color:
+        var(--muted);
+
+    font-size: 8px;
+
+    font-weight: 700;
+
+}
+
+
+/* =========================================================
+   VIRTUAL TOUR BUTTON
+   ========================================================= */
+
+.room-tour-button {
+
+    width: 100%;
+
+    margin-top: 10px;
+
+    padding: 10px 12px;
+
+    border: none;
+
+    border-radius: 9px;
+
+    background:
+        linear-gradient(
+            135deg,
+            var(--hostel-blue),
+            #38519a
+        );
+
+    color: white;
+
+    font-size: 10px;
+
+    font-weight: 800;
+
+    cursor: pointer;
+
+    transition:
+
+        transform .15s ease,
+
+        box-shadow .15s ease;
+
+}
+
+
+.room-tour-button:hover {
+
+    transform:
+        translateY(-1px);
+
+    box-shadow:
+        0 8px 18px
+        rgba(35, 53, 113, .25);
+
+}
+
+
+/* =========================================================
+   VIRTUAL TOUR CONTAINER
+   ========================================================= */
+
+.room-virtual-tour {
+
+    display: none;
+
+    margin-top: 16px;
+
+    overflow: hidden;
+
+    border:
+        1px solid
+        var(--border);
+
+    border-radius: 14px;
+
+    background: #fff;
+
+    box-shadow:
+        0 12px 35px
+        rgba(15, 23, 42, .12);
+
+}
+
+
+.room-virtual-tour.open {
+
+    display: block;
+
+    animation:
+        tourOpen .25s ease;
+
+}
+
+
+@keyframes tourOpen {
+
+    from {
+
+        opacity: 0;
+
+        transform:
+            translateY(-8px);
+
+    }
+
+    to {
+
+        opacity: 1;
+
+        transform:
+            translateY(0);
+
+    }
+
+}
+
+
+.virtual-tour-header {
+
+    display: flex;
+
+    justify-content:
+        space-between;
+
+    align-items: center;
+
+    padding: 12px 16px;
+
+    border-bottom:
+        1px solid
+        var(--border);
+
+    background:
+        linear-gradient(
+            135deg,
+            #f7f9ff,
+            #ffffff
+        );
+
+}
+
+
+.virtual-tour-header span {
+
+    display: block;
+
+    color:
+        var(--muted);
+
+    font-size: 8px;
+
+    font-weight: 800;
+
+    letter-spacing: .12em;
+
+}
+
+
+.virtual-tour-header strong {
+
+    display: block;
+
+    margin-top: 3px;
+
+    color:
+        var(--hostel-blue);
+
+    font-size: 16px;
+
+}
+
+
+.virtual-tour-close {
+
+    width: 32px;
+
+    height: 32px;
+
+    border:
+        1px solid
+        var(--border);
+
+    border-radius: 8px;
+
+    background: white;
+
+    color:
+        var(--hostel-blue);
+
+    font-size: 22px;
+
+    cursor: pointer;
+
+}
+
+
+.virtual-tour-close:hover {
+
+    background: #f1f4fa;
+
+}
+
+
+.room-tour-frame {
+
+    display: block;
+
+    width: 100%;
+
+    height: 500px;
+
+    border: none;
+
+}
+
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 768px) {
+
+    .hostel-map-controls {
+
+        grid-template-columns:
+            1fr;
+
+    }
+
+
+    .current-location {
+
+        padding:
+
+            10px 0 0;
+
+        border-left: none;
+
+        border-top:
+            1px solid
+            var(--border);
+
+    }
+
+
+    .room-tour-frame {
+
+        height: 350px;
+
+    }
+
+}
+
+/* =========================================================
+   MAP + VIRTUAL TOUR TWO COLUMN LAYOUT
+   ========================================================= */
+
+.hostel-map-layout {
+
+    display: grid;
+
+    grid-template-columns:
+        minmax(0, 1.15fr)
+        minmax(380px, .85fr);
+
+    gap: 18px;
+
+    align-items: stretch;
+
+    margin-top: 16px;
+
+}
+
+
+/* =========================================================
+   LEFT SIDE MAP
+   ========================================================= */
+
+.hostel-map-layout
+.hostel-map-shell {
+
+    min-width: 0;
+
+    height: 100%;
+
+}
+
+
+/* =========================================================
+   RIGHT SIDE VIRTUAL TOUR PANEL
+   ========================================================= */
+
+.virtual-tour-panel {
+
+    display: flex;
+
+    flex-direction: column;
+
+    min-height: 620px;
+
+    overflow: hidden;
+
+    border:
+        1px solid
+        var(--border);
+
+    border-radius: 14px;
+
+    background:
+        linear-gradient(
+            180deg,
+            #ffffff,
+            #fafbfe
+        );
+
+    box-shadow:
+        0 8px 25px
+        rgba(35, 53, 113, .07);
+
+}
+
+
+/* =========================================================
+   VIRTUAL TOUR HEADER
+   ========================================================= */
+
+.virtual-tour-panel-header {
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    min-height: 95px;
+
+    padding: 16px 18px;
+
+    border-bottom:
+        1px solid
+        var(--border);
+
+    background:
+        linear-gradient(
+            135deg,
+            #f5f7ff,
+            #ffffff
+        );
+
+}
+
+
+.virtual-tour-label {
+
+    display: block;
+
+    color:
+        var(--available);
+
+    font-size: 9px;
+
+    font-weight: 800;
+
+    letter-spacing: .12em;
+
+}
+
+
+.virtual-tour-panel-header h4 {
+
+    margin: 5px 0 0;
+
+    color:
+        var(--hostel-blue);
+
+    font-size: 20px;
+
+}
+
+
+.virtual-tour-panel-header p {
+
+    margin: 4px 0 0;
+
+    color:
+        var(--muted);
+
+    font-size: 11px;
+
+}
+
+
+/* =========================================================
+   TOUR VIEWER
+   ========================================================= */
+
+.virtual-tour-viewer {
+
+    position: relative;
+
+    flex: 1;
+
+    min-height: 520px;
+
+    overflow: hidden;
+
+    background:
+        #f4f6fa;
+
+}
+
+
+.virtual-tour-viewer iframe {
+
+    display: block;
+
+    width: 100%;
+
+    height: 100%;
+
+    min-height: 520px;
+
+    border: none;
+
+}
+
+
+/* =========================================================
+   PLACEHOLDER
+   ========================================================= */
+
+.tour-placeholder {
+
+    position: absolute;
+
+    inset: 0;
+
+    display: flex;
+
+    flex-direction: column;
+
+    align-items: center;
+
+    justify-content: center;
+
+    padding: 30px;
+
+    text-align: center;
+
+    color:
+        var(--muted);
+
+}
+
+
+.tour-placeholder-icon {
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    width: 70px;
+
+    height: 70px;
+
+    margin-bottom: 16px;
+
+    border-radius: 50%;
+
+    background:
+        #edf2ff;
+
+    font-size: 30px;
+
+}
+
+
+.tour-placeholder h3 {
+
+    margin: 0;
+
+    color:
+        var(--hostel-blue);
+
+    font-size: 18px;
+
+}
+
+
+.tour-placeholder p {
+
+    max-width: 250px;
+
+    margin: 8px 0 0;
+
+    font-size: 12px;
+
+    line-height: 1.6;
+
+}
+
+
+/* =========================================================
+   ALLOTMENT LETTER BELOW MAP SECTION
+   ========================================================= */
+
+/*
+   Any existing allotment letter card
+   can be placed below the map/tour area
+   using this class.
+*/
+
+.allotment-letter-section {
+
+    width: 100%;
+
+    margin-top: 24px;
+
+    clear: both;
+
+}
+
+
+/* =========================================================
+   RESPONSIVE TABLET
+   ========================================================= */
+
+@media (max-width: 1100px) {
+
+    .hostel-map-layout {
+
+        grid-template-columns:
+            1fr;
+
+    }
+
+
+    .virtual-tour-panel {
+
+        min-height: 520px;
+
+    }
+
+
+    .virtual-tour-viewer {
+
+        min-height: 450px;
+
+    }
+
+}
+
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 768px) {
+
+    .hostel-map-layout {
+
+        gap: 14px;
+
+    }
+
+
+    .virtual-tour-panel {
+
+        min-height: 420px;
+
+    }
+
+
+    .virtual-tour-viewer {
+
+        min-height: 400px;
+
+    }
+
+
+    .virtual-tour-viewer iframe {
+
+        min-height: 400px;
+
+    }
+
+
+    .virtual-tour-panel-header {
+
+        min-height: auto;
+
+        padding: 14px;
+
+    }
+
+
+    .virtual-tour-panel-header h4 {
+
+        font-size: 17px;
+
+    }
+
+}
