@@ -1249,7 +1249,7 @@
                 <p class="modal-body" id="allocationPreviewText">Checking allocation preview...</p>
                 <div class="modal-actions">
                     <button class="btn-outline" onclick="closeModal()">Cancel</button>
-                    <button class="btn-accent" onclick="runEngine()">Confirm & Run</button>
+                    <button class="btn-accent" id="runAllocationBtn" onclick="runEngine()">Confirm & Run</button>
                 </div>
             </div>
             
@@ -1497,13 +1497,18 @@
         }
 
         async function runEngine() {
-            s1.style.display = 'none';
-            s2.style.display = 'block';
+            const runBtn = document.getElementById('runAllocationBtn');
+            const cancelBtn = s1.querySelector('.btn-outline');
+            if (runBtn) {
+                runBtn.disabled = true;
+                runBtn.textContent = 'Running...';
+            }
+            if (cancelBtn) cancelBtn.disabled = true;
             
             try {
                 const res = await HostelAPI.runAllocation();
                 if (res && res.success === false) throw new Error(res.message || res.error || 'Allocation failed.');
-                s2.style.display = 'none';
+                s1.style.display = 'none';
                 s3.style.display = 'block';
                 
                 const msgEl = document.getElementById('modal-result-msg');
@@ -1522,9 +1527,14 @@
                     }
                 }
             } catch(e) {
-                s2.style.display = 'none';
                 s1.style.display = 'block';
-                showAdminToast('Failed to run allocation engine', 'error');
+                showAdminToast(e.message || 'Failed to run allocation engine', 'error');
+            } finally {
+                if (runBtn) {
+                    runBtn.disabled = false;
+                    runBtn.textContent = 'Confirm & Run';
+                }
+                if (cancelBtn) cancelBtn.disabled = false;
             }
         }
 
