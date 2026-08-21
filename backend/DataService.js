@@ -1,5 +1,6 @@
-function getSheetData(sheetName) {
-  if (sheetName === 'Students') ensureStudentDocumentColumns();
+function getSheetData(sheetName, options) {
+  options = options || {};
+  if (sheetName === 'Students' && !options.skipEnsure) ensureStudentDocumentColumns();
   const sheet = getSheet(sheetName);
   if (!sheet) return [];
   const range = sheet.getDataRange();
@@ -350,17 +351,22 @@ function updateRoomStatus(data) {
 
 function getRoomSummary() {
   const rooms = getAllRooms();
+  return getRoomSummaryFromRooms(rooms);
+}
+
+function getRoomSummaryFromRooms(rooms) {
   let summary = {
     boys: { total: 0, occupied: 0, vacant: 0 },
     girls: { total: 0, occupied: 0, vacant: 0 }
   };
   
   rooms.forEach(r => {
-    const type = r.HostelType.toLowerCase();
+    const typeRaw = String(getStudentValue(r, 'HostelType') || getStudentValue(r, 'HostelName') || '').toLowerCase();
+    const type = typeRaw.includes('girl') ? 'girls' : 'boys';
     if (summary[type]) {
-      summary[type].total += r.Capacity;
-      summary[type].occupied += r.Occupied;
-      summary[type].vacant += r.VacantBeds;
+      summary[type].total += Number(getStudentValue(r, 'Capacity')) || 0;
+      summary[type].occupied += Number(getStudentValue(r, 'Occupied')) || 0;
+      summary[type].vacant += Number(getStudentValue(r, 'VacantBeds')) || 0;
     }
   });
   return summary;
@@ -531,6 +537,12 @@ function updateDocumentVerification(data) {
 
 function getDashboardData() {
   const students = getAllStudents();
+  const rooms = getAllRooms();
+  const allocations = getAllAllocations();
+  return buildDashboardData(students, rooms, allocations);
+}
+
+function buildDashboardData(students, rooms, allocations) {
   const totalApplied = students.length;
   
   const allocated = students.filter(s => {
@@ -560,7 +572,7 @@ function getDashboardData() {
     return st === 'allocated' && (g.includes('female') || g.includes('girl') || g === 'f');
   }).length;
 
-  const roomSummary = getRoomSummary();
+  const roomSummary = getRoomSummaryFromRooms(rooms || []);
   
   let priorityBreakdown = [0, 0, 0, 0, 0];
   students.forEach(s => {
@@ -568,8 +580,7 @@ function getDashboardData() {
     if (p >= 1 && p <= 5) priorityBreakdown[p - 1]++;
   });
   
-  const allocations = getAllAllocations();
-  const recentAllocations = allocations.slice(-5).reverse();
+  const recentAllocations = (allocations || []).slice(-5).reverse();
   
   return {
     totalApplied, allocated, waitlisted, pending,
@@ -578,6 +589,26 @@ function getDashboardData() {
     girlStats: roomSummary.girls,
     priorityBreakdown,
     recentAllocations
+  };
+}
+
+function getAdminSnapshot() {
+  const students = getSheetData('Students', { skipEnsure: true });
+  const rooms = getSheetData('Rooms');
+  const allocations = getSheetData('Allocations');
+  const grievances = getSheetData('Grievances');
+  const notices = getSheetData('Notices').filter(n => n.Active === true || n.Active === 'TRUE').reverse();
+  const settings = getSettingsPublic();
+  return {
+    success: true,
+    fetchedAt: new Date().toISOString(),
+    dashboard: buildDashboardData(students, rooms, allocations),
+    students,
+    rooms,
+    allocations,
+    grievances,
+    notices,
+    settings
   };
 }
 
@@ -610,7 +641,7 @@ function getSettingsPublic() {
 }
 
 function updateSetting(data) {
-  const allowed = ['REGISTRATION_OPEN', 'REGISTRATION_CLOSE_DATE', 'HOSTEL_OFFICE_CONTACT', 'MESS_FEE_NOTE'];
+  const allowed = ['REGISTRATION_OPEN', 'REGISTRATION_CLOSE_DATE', 'HOSTEL_OFFICE_CONTACT', 'MESS_FEE_NOTE', 'ALLOCATION_METHOD'];
   const key = data.Key || data.key || '';
   const value = data.Value !== undefined ? data.Value : data.value;
   if (!allowed.includes(key)) return { success: false, error: 'Setting cannot be updated from admin panel.' };

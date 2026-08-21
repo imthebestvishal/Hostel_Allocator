@@ -10,19 +10,21 @@ const CORS_HEADERS = {
 };
 
 function doGet(e) {
-  const action = e.parameter.action || '';
+  const params = (e && e.parameter) ? e.parameter : {};
+  const action = params.action || '';
   
   try {
     let result;
     switch(action) {
       case 'getDashboard':    result = getDashboardData(); break;
+      case 'getAdminSnapshot': result = getAdminSnapshot(); break;
       case 'getStudents':     result = getAllStudents(); break;
       case 'getRooms':        result = getAllRooms(); break;
       case 'getAllocations':  result = getAllAllocations(); break;
       case 'getGrievances':   result = getAllGrievances(); break;
       case 'getNotices':      result = getNotices(); break;
-      case 'getStudentStatus': result = getStudentStatus(e.parameter.enrollmentNo, e.parameter.dob); break;
-      case 'runAllocation':   result = runAllocationEngine(); break;
+      case 'getStudentStatus': result = getStudentStatus(params.enrollmentNo, params.dob); break;
+      case 'runAllocation':   result = runAllocationEngine(params.method); break;
       case 'getAllocationPreview': result = getAllocationPreview(); break;
       case 'sendLetters':     result = sendAllotmentLetters(); break;
       case 'reseedRooms':     result = resetAndSeedRooms(); break;
@@ -38,7 +40,7 @@ function doGet(e) {
 function doPost(e) {
   let body;
   try {
-    body = JSON.parse(e.postData.contents);
+    body = e && e.postData && e.postData.contents ? JSON.parse(e.postData.contents) : {};
   } catch(err) {
     return buildResponse({ error: 'Invalid JSON body' }, 400);
   }

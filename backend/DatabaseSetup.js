@@ -71,6 +71,7 @@ function seedData(ss) {
   const settings = [
     ['ADMIN_PASSWORD', 'admin123', 'Password for admin login'],
     ['ALLOCATION_RUNNING', 'false', 'Flag to prevent concurrent runs'],
+    ['ALLOCATION_METHOD', 'SORTING', 'Allocation method: SORTING or OPTIMIZED'],
     ['LAST_ALLOCATION_DATE', '', 'Date of last allocation'],
     ['SMTP_FROM_NAME', 'GGSIPU Hostel Administration', 'Sender name for emails'],
     ['REGISTRATION_OPEN', 'true', 'Whether hostel applications are currently accepted'],
