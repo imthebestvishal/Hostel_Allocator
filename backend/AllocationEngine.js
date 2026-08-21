@@ -10,6 +10,42 @@ function getStudentValue(obj, keyName) {
   return '';
 }
 
+const BOYS_ALLOCATION_BATCH_LIMIT = 40;
+const GIRLS_ALLOCATION_BATCH_LIMIT = 40;
+
+function isBoyStudent(student) {
+  const g = String(getStudentValue(student, 'Gender')).toLowerCase();
+  return (g.includes('male') && !g.includes('female')) || g.includes('boy') || g === 'm';
+}
+
+function isGirlStudent(student) {
+  const g = String(getStudentValue(student, 'Gender')).toLowerCase();
+  return g.includes('female') || g.includes('girl') || g === 'f';
+}
+
+function compareStudentsByAllocationRank(a, b) {
+  const aPriority = parseInt(getStudentValue(a, 'Priority'), 10) || 5;
+  const bPriority = parseInt(getStudentValue(b, 'Priority'), 10) || 5;
+  if (aPriority !== bPriority) return aPriority - bPriority;
+  if (aPriority === 2 || aPriority === 3) return (parseFloat(getStudentValue(b, 'TwelfthMarks')) || 0) - (parseFloat(getStudentValue(a, 'TwelfthMarks')) || 0);
+  if (aPriority === 4) return (parseFloat(getStudentValue(b, 'DistanceKm')) || 0) - (parseFloat(getStudentValue(a, 'DistanceKm')) || 0);
+  return new Date(getStudentValue(a, 'Timestamp')) - new Date(getStudentValue(b, 'Timestamp'));
+}
+
+function getSortedAllocationBatch(students, limit) {
+  return [...(students || [])].sort(compareStudentsByAllocationRank).slice(0, limit);
+}
+
+function getAllocationEnrollmentNo(allocation) {
+  const direct = getStudentValue(allocation, 'EnrollmentNo');
+  if (direct) return direct;
+  const values = Object.values(allocation || {});
+  if (values.length >= 4 && /^ALC-/i.test(String(values[1] || '').trim()) && /^GGSIPU-/i.test(String(values[3] || '').trim())) {
+    return values[0];
+  }
+  return '';
+}
+
 function runAllocationEngine() {
   const settingsSheet = getSheet('Settings');
   const settingsData = settingsSheet.getDataRange().getValues();
@@ -27,10 +63,14 @@ function runAllocationEngine() {
 
   let allocatedCount = 0;
   let waitlistedCount = 0;
+  let processedBoys = 0;
+  let processedGirls = 0;
+  let remainingVerifiedBoys = 0;
+  let remainingVerifiedGirls = 0;
 
   try {
     const allStudents = getAllStudents();
-    const existingAllocatedEnrollments = new Set(getAllAllocations().map(a => String(getStudentValue(a, 'EnrollmentNo')).trim().toLowerCase()));
+    const existingAllocatedEnrollments = new Set(getAllAllocations().map(a => String(getAllocationEnrollmentNo(a)).trim().toLowerCase()).filter(Boolean));
     const existingWaitlistedEnrollments = new Set(getSheetData('WaitingList').map(w => String(getStudentValue(w, 'EnrollmentNo')).trim().toLowerCase()));
     const totalPendingStudents = allStudents.filter(s => {
       const st = String(getStudentValue(s, 'Status')).toLowerCase();
@@ -73,20 +113,20 @@ function runAllocationEngine() {
       return (v > 0 || isNaN(v)) && (st === 'active' || st === 'available' || st === '');
     });
 
-    const boys = pendingStudents.filter(s => {
-      const g = String(getStudentValue(s, 'Gender')).toLowerCase();
-      return (g.includes('male') && !g.includes('female')) || g.includes('boy') || g === 'm';
-    });
-    const girls = pendingStudents.filter(s => {
-      const g = String(getStudentValue(s, 'Gender')).toLowerCase();
-      return g.includes('female') || g.includes('girl') || g === 'f';
-    });
+    const boys = pendingStudents.filter(isBoyStudent);
+    const girls = pendingStudents.filter(isGirlStudent);
+    const boysBatch = getSortedAllocationBatch(boys, BOYS_ALLOCATION_BATCH_LIMIT);
+    const girlsBatch = getSortedAllocationBatch(girls, GIRLS_ALLOCATION_BATCH_LIMIT);
+    processedBoys = boysBatch.length;
+    processedGirls = girlsBatch.length;
+    remainingVerifiedBoys = Math.max(0, boys.length - BOYS_ALLOCATION_BATCH_LIMIT);
+    remainingVerifiedGirls = Math.max(0, girls.length - GIRLS_ALLOCATION_BATCH_LIMIT);
 
     const boyRooms = rooms.filter(r => String(getStudentValue(r, 'HostelType')).toLowerCase().includes('boy'));
     const girlRooms = rooms.filter(r => String(getStudentValue(r, 'HostelType')).toLowerCase().includes('girl'));
 
-    const allocResultBoys = allocateGroup(boys, boyRooms);
-    const allocResultGirls = allocateGroup(girls, girlRooms);
+    const allocResultBoys = allocateGroup(boysBatch, boyRooms);
+    const allocResultGirls = allocateGroup(girlsBatch, girlRooms);
     
     allocatedCount = allocResultBoys.allocated + allocResultGirls.allocated;
     waitlistedCount = allocResultBoys.waitlisted + allocResultGirls.waitlisted;
@@ -119,6 +159,10 @@ function runAllocationEngine() {
     success: true, 
     allocated: allocatedCount, 
     waitlisted: waitlistedCount,
+    processedBoys: processedBoys,
+    processedGirls: processedGirls,
+    remainingVerifiedBoys: remainingVerifiedBoys,
+    remainingVerifiedGirls: remainingVerifiedGirls,
     message: `Allocation completed successfully! Allocated: ${allocatedCount}, Waitlisted: ${waitlistedCount}.${unverifiedPendingCount > 0 ? ' (Skipped ' + unverifiedPendingCount + ' pending student(s) due to unverified documents)' : ''}`
   };
 }
@@ -127,14 +171,7 @@ function allocateGroup(students, rooms) {
   let allocated = 0;
   let waitlisted = 0;
 
-  students.sort((a, b) => {
-    const aPriority = parseInt(getStudentValue(a, 'Priority'), 10) || 5;
-    const bPriority = parseInt(getStudentValue(b, 'Priority'), 10) || 5;
-    if (aPriority !== bPriority) return aPriority - bPriority;
-    if (aPriority === 2 || aPriority === 3) return (parseFloat(getStudentValue(b, 'TwelfthMarks')) || 0) - (parseFloat(getStudentValue(a, 'TwelfthMarks')) || 0);
-    if (aPriority === 4) return (parseFloat(getStudentValue(b, 'DistanceKm')) || 0) - (parseFloat(getStudentValue(a, 'DistanceKm')) || 0);
-    return new Date(getStudentValue(a, 'Timestamp')) - new Date(getStudentValue(b, 'Timestamp'));
-  });
+  students.sort(compareStudentsByAllocationRank);
 
   const roomsMap = new Map();
   rooms.forEach(r => roomsMap.set(r.RoomID, {...r}));
@@ -219,7 +256,7 @@ function promoteFromWaitlist() {
 function getAllocationPreview() {
   const students = getAllStudents();
   const rooms = getAllRooms();
-  const existingAllocatedEnrollments = new Set(getAllAllocations().map(a => String(getStudentValue(a, 'EnrollmentNo')).trim().toLowerCase()));
+  const existingAllocatedEnrollments = new Set(getAllAllocations().map(a => String(getAllocationEnrollmentNo(a)).trim().toLowerCase()).filter(Boolean));
   const existingWaitlistedEnrollments = new Set(getSheetData('WaitingList').map(w => String(getStudentValue(w, 'EnrollmentNo')).trim().toLowerCase()));
 
   const pending = students.filter(s => {
@@ -230,6 +267,8 @@ function getAllocationPreview() {
       !existingWaitlistedEnrollments.has(enroll);
   });
   const verifiedPending = pending.filter(s => String(getStudentValue(s, 'DocumentStatus')).toLowerCase() === 'verified');
+  const verifiedBoysPending = verifiedPending.filter(isBoyStudent).length;
+  const verifiedGirlsPending = verifiedPending.filter(isGirlStudent).length;
 
   let boysSeats = 0;
   let girlsSeats = 0;
@@ -245,6 +284,14 @@ function getAllocationPreview() {
   return {
     success: true,
     verifiedPending: verifiedPending.length,
+    verifiedBoysPending: verifiedBoysPending,
+    verifiedGirlsPending: verifiedGirlsPending,
+    batchBoysLimit: BOYS_ALLOCATION_BATCH_LIMIT,
+    batchGirlsLimit: GIRLS_ALLOCATION_BATCH_LIMIT,
+    processableBoysThisRun: Math.min(BOYS_ALLOCATION_BATCH_LIMIT, verifiedBoysPending),
+    processableGirlsThisRun: Math.min(GIRLS_ALLOCATION_BATCH_LIMIT, verifiedGirlsPending),
+    remainingVerifiedBoysAfterBatch: Math.max(0, verifiedBoysPending - BOYS_ALLOCATION_BATCH_LIMIT),
+    remainingVerifiedGirlsAfterBatch: Math.max(0, verifiedGirlsPending - GIRLS_ALLOCATION_BATCH_LIMIT),
     unverifiedPending: pending.length - verifiedPending.length,
     availableBoysSeats: boysSeats,
     availableGirlsSeats: girlsSeats

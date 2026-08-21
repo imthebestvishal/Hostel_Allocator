@@ -1482,7 +1482,11 @@
             modal.classList.add('active');
             try {
                 const preview = await HostelAPI.getAllocationPreview();
-                previewEl.textContent = `Ready to process ${preview.verifiedPending || 0} verified pending application(s). ${preview.unverifiedPending || 0} pending application(s) will be skipped because documents are not verified. Available seats: Boys ${preview.availableBoysSeats || 0}, Girls ${preview.availableGirlsSeats || 0}.`;
+                const boysThisRun = preview.processableBoysThisRun ?? Math.min(40, preview.verifiedBoysPending || 0);
+                const girlsThisRun = preview.processableGirlsThisRun ?? Math.min(40, preview.verifiedGirlsPending || 0);
+                const remainingBoys = preview.remainingVerifiedBoysAfterBatch ?? Math.max(0, (preview.verifiedBoysPending || 0) - 40);
+                const remainingGirls = preview.remainingVerifiedGirlsAfterBatch ?? Math.max(0, (preview.verifiedGirlsPending || 0) - 40);
+                previewEl.textContent = `Ready to process this batch: ${boysThisRun} boys and ${girlsThisRun} girls (up to 40 each). Verified pending: Boys ${preview.verifiedBoysPending || 0}, Girls ${preview.verifiedGirlsPending || 0}. Remaining after this batch will stay pending: Boys ${remainingBoys}, Girls ${remainingGirls}. ${preview.unverifiedPending || 0} pending application(s) will be skipped because documents are not verified. Available seats: Boys ${preview.availableBoysSeats || 0}, Girls ${preview.availableGirlsSeats || 0}.`;
             } catch (err) {
                 previewEl.textContent = 'Preview unavailable. The allocation engine will still skip unverified documents and already processed students.';
             }
@@ -1506,7 +1510,11 @@
                 if (msgEl) {
                     if (res && (res.allocated !== undefined || res.waitlisted !== undefined)) {
                         const total = (res.allocated || 0) + (res.waitlisted || 0);
-                        msgEl.textContent = `Successfully processed ${total} application(s) (${res.allocated || 0} allocated, ${res.waitlisted || 0} waitlisted). Results are now available in the Allocations tab.`;
+                        const processedBoys = res.processedBoys ?? 0;
+                        const processedGirls = res.processedGirls ?? 0;
+                        const remainingBoys = res.remainingVerifiedBoys ?? 0;
+                        const remainingGirls = res.remainingVerifiedGirls ?? 0;
+                        msgEl.textContent = `Successfully processed ${total} application(s) in this batch (${processedBoys} boys, ${processedGirls} girls; ${res.allocated || 0} allocated, ${res.waitlisted || 0} waitlisted). Remaining verified applications stay pending for the next run: Boys ${remainingBoys}, Girls ${remainingGirls}. Results are now available in the Allocations tab.`;
                     } else if (res && res.message) {
                         msgEl.textContent = res.message + '. Results are now available in the Allocations tab.';
                     } else {
