@@ -4,7 +4,8 @@
   "description": "GGSIPU East Delhi Campus Hostel Allocation System",
   "scripts": {
     "start": "npx serve .",
-    "test:batch-allocation": "node scripts/testBatchAllocation.js"
+    "test:batch-allocation": "node scripts/testBatchAllocation.js",
+    "load-test:allocation": "node scripts/runAllocationLoadTest.js"
   },
   "devDependencies": {
     "serve": "^14.2.0"

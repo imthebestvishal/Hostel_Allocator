@@ -9,7 +9,8 @@ const sandbox = {
   Date,
   Math,
   Object,
-  Utilities: { getUuid: () => 'test-uuid' }
+  Utilities: { getUuid: () => 'test-uuid' },
+  sendWaitlistNotification: () => {}
 };
 
 vm.createContext(sandbox);
@@ -51,5 +52,42 @@ assert.strictEqual(
   sandbox.getAllocationEnrollmentNo(existingBrokenHeaderAllocation),
   'LOAD-202608211015-0050'
 );
+
+const rooms = [
+  { RoomID: 'R-B-1', HostelType: 'Boys', HostelName: 'Boys', RoomNumber: 'B-101', Floor: 'Floor 1', Capacity: 2, Occupied: 0, VacantBeds: 2 }
+];
+const allocationPlan = sandbox.planAllocationGroup(boys.slice(0, 3), rooms, 1);
+assert.strictEqual(allocationPlan.allocated, 2);
+assert.strictEqual(allocationPlan.waitlisted, 1);
+assert.strictEqual(allocationPlan.allocationRows.length, 2);
+assert.strictEqual(allocationPlan.waitlistRows.length, 1);
+assert.strictEqual(allocationPlan.statusUpdates.length, 3);
+assert.strictEqual(allocationPlan.statusUpdates.filter(u => u.status === 'Allocated').length, 2);
+assert.strictEqual(allocationPlan.statusUpdates.filter(u => u.status === 'Waitlisted').length, 1);
+
+const statusSheet = {
+  values: null,
+  getRange(row, col, rows, cols) {
+    assert.strictEqual(row, 2);
+    assert.strictEqual(col, 20);
+    assert.strictEqual(cols, 1);
+    return {
+      setValues: values => {
+        assert.strictEqual(values.length, rows);
+        this.values = values;
+      }
+    };
+  }
+};
+const studentData = [
+  ['ApplicationID', 'EnrollmentNo', 'Name', 'Gender', 'DOB', 'Email', 'Phone', 'Aadhaar', 'Programme', 'Branch', 'Year', 'TwelfthMarks', 'Category', 'State', 'ParentsTransferred', 'DistanceKm', 'PWD', 'HostelPref', 'RoommatePreference', 'Status'],
+  ['A1', 'S-001', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 'Pending'],
+  ['A2', 'S-002', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 'Pending']
+];
+sandbox.batchUpdateStudentStatuses(statusSheet, studentData, sandbox.buildStudentRowIndex(studentData), [
+  { enrollmentNo: 'S-001', status: 'Allocated' },
+  { enrollmentNo: 'S-002', status: 'Waitlisted' }
+]);
+assert.strictEqual(JSON.stringify(statusSheet.values), JSON.stringify([['Allocated'], ['Waitlisted']]));
 
 console.log('Batch allocation tests passed.');

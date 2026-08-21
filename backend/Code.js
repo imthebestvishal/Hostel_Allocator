@@ -57,6 +57,7 @@ function doPost(e) {
       case 'resolveGrievance':  result = resolveGrievance(body.data); break;
       case 'adminLogin':        result = adminLogin(body.data); break;
       case 'updateSetting':     result = updateSetting(body.data); break;
+      case 'resetVerifiedTestStudentsForReallocation': result = resetVerifiedTestStudentsForReallocation(); break;
       default: result = { error: 'Unknown action' };
     }
     return buildResponse(result);
