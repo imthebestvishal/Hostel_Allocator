@@ -937,7 +937,7 @@ window.HostelAPI = {
   getNotices:       (options = {}) => gasRequest('getNotices',       'GET', null, null, options),
   getSettingsPublic: ()        => gasRequest('getSettingsPublic', 'GET'),
   getAllocationPreview: ()     => gasRequest('getAllocationPreview', 'GET'),
-  runAllocation:    ()         => gasRequest('runAllocation',    'GET'),
+  runAllocation:    ()         => gasRequest('runAllocation',    'GET', null, null, { loading: false }),
   sendLetters:      ()         => gasRequest('sendLetters',      'GET'),
   postNotice:       (data)     => gasRequest('postNotice',       'POST', data),
   resolveGrievance: (data)     => gasRequest('resolveGrievance', 'POST', data),
