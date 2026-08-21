@@ -854,6 +854,23 @@
         .modal-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 12px; }
         .modal-body { color: var(--c-muted); margin-bottom: 24px; font-size: 0.95rem; line-height: 1.5; }
         .modal-actions { display: flex; gap: 12px; justify-content: center; }
+        .allocation-confirm-box {
+            text-align: left;
+            border-top: 1px solid var(--c-border);
+            margin-top: 18px;
+            padding-top: 18px;
+        }
+        .allocation-confirm-box .form-group {
+            margin-bottom: 12px;
+        }
+        .allocation-countdown {
+            min-height: 20px;
+            color: var(--c-muted);
+            font-size: 0.86rem;
+            font-weight: 600;
+            text-align: center;
+            margin: 8px 0 14px;
+        }
         .allocation-detail-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1247,9 +1264,16 @@
             <div id="modal-step-1">
                 <h2 class="modal-title">Run Allocation Engine</h2>
                 <p class="modal-body" id="allocationPreviewText">Checking allocation preview...</p>
+                <div class="allocation-confirm-box">
+                    <div class="form-group">
+                        <label for="allocationAdminPassword">Confirm Admin Password</label>
+                        <input class="form-control" id="allocationAdminPassword" type="password" autocomplete="current-password" placeholder="Enter admin password">
+                    </div>
+                    <div class="allocation-countdown" id="allocationConfirmCountdown">Confirm button will appear in 10 seconds.</div>
+                </div>
                 <div class="modal-actions">
                     <button class="btn-outline" onclick="closeModal()">Cancel</button>
-                    <button class="btn-accent" id="runAllocationBtn" onclick="runEngine()">Confirm & Run</button>
+                    <button class="btn-accent" id="runAllocationBtn" onclick="runEngine()" style="display:none;">Confirm & Run</button>
                 </div>
             </div>
             
@@ -1472,14 +1496,65 @@
         const s1 = document.getElementById('modal-step-1');
         const s2 = document.getElementById('modal-step-2');
         const s3 = document.getElementById('modal-step-3');
+        let allocationConfirmTimer = null;
+        let allocationConfirmSeconds = 10;
+
+        function resetAllocationConfirmGate() {
+            if (allocationConfirmTimer) {
+                clearInterval(allocationConfirmTimer);
+                allocationConfirmTimer = null;
+            }
+            allocationConfirmSeconds = 10;
+            const passwordEl = document.getElementById('allocationAdminPassword');
+            const countdownEl = document.getElementById('allocationConfirmCountdown');
+            const runBtn = document.getElementById('runAllocationBtn');
+            if (passwordEl) {
+                passwordEl.value = '';
+                passwordEl.disabled = false;
+            }
+            if (countdownEl) countdownEl.textContent = 'Confirm button will appear in 10 seconds.';
+            if (runBtn) {
+                runBtn.style.display = 'none';
+                runBtn.disabled = true;
+                runBtn.textContent = 'Confirm & Run';
+            }
+        }
+
+        function startAllocationConfirmCountdown() {
+            const countdownEl = document.getElementById('allocationConfirmCountdown');
+            const runBtn = document.getElementById('runAllocationBtn');
+            if (allocationConfirmTimer) clearInterval(allocationConfirmTimer);
+            allocationConfirmSeconds = 10;
+            if (countdownEl) countdownEl.textContent = 'Confirm button will appear in 10 seconds.';
+            if (runBtn) {
+                runBtn.style.display = 'none';
+                runBtn.disabled = true;
+            }
+            allocationConfirmTimer = setInterval(() => {
+                allocationConfirmSeconds -= 1;
+                if (allocationConfirmSeconds > 0) {
+                    if (countdownEl) countdownEl.textContent = `Confirm button will appear in ${allocationConfirmSeconds} second${allocationConfirmSeconds === 1 ? '' : 's'}.`;
+                    return;
+                }
+                clearInterval(allocationConfirmTimer);
+                allocationConfirmTimer = null;
+                if (countdownEl) countdownEl.textContent = 'Review the preview and enter the admin password to continue.';
+                if (runBtn) {
+                    runBtn.style.display = '';
+                    runBtn.disabled = false;
+                }
+            }, 1000);
+        }
 
         async function openModal() {
+            resetAllocationConfirmGate();
             s1.style.display = 'block';
             s2.style.display = 'none';
             s3.style.display = 'none';
             const previewEl = document.getElementById('allocationPreviewText');
             previewEl.textContent = 'Checking allocation preview...';
             modal.classList.add('active');
+            startAllocationConfirmCountdown();
             try {
                 const preview = await HostelAPI.getAllocationPreview();
                 const boysThisRun = preview.processableBoysThisRun ?? Math.min(40, preview.verifiedBoysPending || 0);
@@ -1493,19 +1568,35 @@
         }
 
         function closeModal() {
+            resetAllocationConfirmGate();
             modal.classList.remove('active');
         }
 
         async function runEngine() {
             const runBtn = document.getElementById('runAllocationBtn');
             const cancelBtn = s1.querySelector('.btn-outline');
+            const passwordEl = document.getElementById('allocationAdminPassword');
+            const password = passwordEl ? passwordEl.value.trim() : '';
+            if (allocationConfirmTimer || allocationConfirmSeconds > 0) {
+                showAdminToast('Please wait for the 10 second confirmation timer.', 'error');
+                return;
+            }
+            if (!password) {
+                showAdminToast('Enter admin password before running allocation.', 'error');
+                if (passwordEl) passwordEl.focus();
+                return;
+            }
             if (runBtn) {
                 runBtn.disabled = true;
-                runBtn.textContent = 'Running...';
+                runBtn.textContent = 'Verifying...';
             }
             if (cancelBtn) cancelBtn.disabled = true;
+            if (passwordEl) passwordEl.disabled = true;
             
             try {
+                const auth = await HostelAPI.adminLogin({ password }, { loading: false });
+                if (!auth || !auth.success) throw new Error('Invalid admin password.');
+                if (runBtn) runBtn.textContent = 'Running...';
                 const res = await HostelAPI.runAllocation();
                 if (res && res.success === false) throw new Error(res.message || res.error || 'Allocation failed.');
                 s1.style.display = 'none';
@@ -1535,6 +1626,7 @@
                     runBtn.textContent = 'Confirm & Run';
                 }
                 if (cancelBtn) cancelBtn.disabled = false;
+                if (passwordEl) passwordEl.disabled = false;
             }
         }
 

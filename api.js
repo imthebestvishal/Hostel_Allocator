@@ -945,7 +945,7 @@ window.HostelAPI = {
   sendDiscrepancyEmail: (data) => gasRequest('sendDiscrepancyEmail', 'POST', data),
   sendDiscrepancyEmails: (data = {}) => gasRequest('sendDiscrepancyEmails', 'POST', data),
   updateSetting:    (data)     => gasRequest('updateSetting',    'POST', data),
-  adminLogin:       (data)     => gasRequest('adminLogin',       'POST', data),
+  adminLogin:       (data, options = {}) => gasRequest('adminLogin',       'POST', data, null, options),
   exportCSV:        (data, fn) => downloadCSV(data, fn),
 
   // ── Student ─────────────────────────────────────────────
