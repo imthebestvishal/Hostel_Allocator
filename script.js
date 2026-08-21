@@ -45,6 +45,9 @@ function showToast(message, type = 'info') {
     const EXT           = '.jpg';
     const BASE_LERP     = 0.105;   // lower = smoother, higher = more responsive
     const MAX_DPR       = 2;       // crisp canvas without wasting too much memory
+    const MAX_VISIBLE_LOADING_MS = 2200;
+    const INITIAL_KEYFRAME_STEP = 24;
+    const FRAME_LOOKAHEAD = 4;
     const MOBILE_QUERY  = window.matchMedia('(max-width: 640px)');
 
     // ── State ───────────────────────────────────────────────
@@ -61,6 +64,11 @@ function showToast(message, type = 'info') {
     let   scrollMetrics = null;
     let   lastScrollY   = window.scrollY || 0;
     let   scrollingUp   = false;
+    let   loadingBarHidden = false;
+    let   loadingBarTimer = 0;
+    let   activeLoads = 0;
+    let   queuedFrameSet = new Set();
+    let   requestedFrameSet = new Set();
 
     // ── DOM ─────────────────────────────────────────────────
     const canvas       = document.getElementById('droneCanvas');
@@ -186,6 +194,7 @@ function showToast(message, type = 'info') {
         scrollingUp = currentScrollY < lastScrollY;
         lastScrollY = currentScrollY;
         targetFrame = getFrameFromScroll();
+        queueNearbyFrames(Math.round(targetFrame));
         startAnimating();
 
         // Hide scroll cue after initial scroll
@@ -204,17 +213,38 @@ function showToast(message, type = 'info') {
     }
 
     // ── Load images ─────────────────────────────────────────
+    function updateLoadingProgress() {
+        const starterTarget = Math.ceil(TOTAL_FRAMES / INITIAL_KEYFRAME_STEP) + 1;
+        const pct = Math.min(100, Math.round((loadedCount / starterTarget) * 100));
+        if (loadingFill) loadingFill.style.width = pct + '%';
+        if (loadingText) loadingText.textContent = pct >= 100 ? 'Ready' : `Loading campus... ${pct}%`;
+    }
+
+    function hideLoadingBar() {
+        if (loadingBarHidden) return;
+        loadingBarHidden = true;
+        if (loadingBarTimer) clearTimeout(loadingBarTimer);
+        if (loadingFill) loadingFill.style.width = '100%';
+        if (loadingText) loadingText.textContent = 'Ready';
+        if (loadingBar) {
+            loadingBar.style.transition = 'opacity .35s';
+            loadingBar.style.opacity = '0';
+            setTimeout(() => { if (loadingBar) loadingBar.style.display = 'none'; }, 400);
+        }
+    }
+
     function loadImage(index) {
+        if (index < 0 || index >= TOTAL_FRAMES || requestedFrameSet.has(index)) return;
+        requestedFrameSet.add(index);
+
         const img  = new Image();
         img.decoding = 'async';
 
         img.onload = () => {
             frames[index] = img;
             loadedCount++;
-
-            const pct = Math.round((loadedCount / TOTAL_FRAMES) * 100);
-            if (loadingFill) loadingFill.style.width = pct + '%';
-            if (loadingText) loadingText.textContent  = `Loading campus… ${pct}%`;
+            activeLoads = Math.max(0, activeLoads - 1);
+            updateLoadingProgress();
 
             // Draw frame 0 the moment it's ready
             if (index === 0) {
@@ -228,52 +258,81 @@ function showToast(message, type = 'info') {
                 startAnimating();
             }
 
+            if (index === 0 || loadedCount >= Math.ceil(TOTAL_FRAMES / INITIAL_KEYFRAME_STEP)) {
+                hideLoadingBar();
+            }
+
             if (loadedCount >= TOTAL_FRAMES) {
                 allLoaded = true;
-                if (loadingBar) {
-                    loadingBar.style.transition = 'opacity .5s';
-                    loadingBar.style.opacity = '0';
-                    setTimeout(() => { if (loadingBar) loadingBar.style.display = 'none'; }, 600);
-                }
             }
+            pumpFrameQueue();
         };
 
         img.onerror = () => {
             console.warn(`[Sequence] Failed to load frame ${index + FRAME_START}`);
             frames[index] = { complete: false, naturalWidth: 0 };
             loadedCount++;
+            activeLoads = Math.max(0, activeLoads - 1);
+            updateLoadingProgress();
+            pumpFrameQueue();
         };
 
+        activeLoads++;
         img.src = `${IMAGE_PATH}${frameName(index + FRAME_START)}${EXT}`;
     }
 
-    // ── Progressive load — prioritise first frame, then rest ─
-    function startLoading() {
-        if (loadingBar) loadingBar.style.display = 'block';
+    function enqueueFrame(index) {
+        if (index < 0 || index >= TOTAL_FRAMES || requestedFrameSet.has(index)) return;
+        queuedFrameSet.add(index);
+    }
 
-        // Load frame 0 immediately
-        loadImage(0);
-
-        // Load keyframes first so fast scrolls still have nearby frames.
-        const queue = [];
-        for (let i = 1; i < TOTAL_FRAMES; i += 4) queue.push(i);
-        for (let i = 2; i < TOTAL_FRAMES; i += 4) queue.push(i);
-        for (let i = 3; i < TOTAL_FRAMES; i += 4) queue.push(i);
-        for (let i = 4; i < TOTAL_FRAMES; i += 4) queue.push(i);
-
-        let i = 0;
-        function step() {
-            if (i >= queue.length) return;
-            loadImage(queue[i]);
-            i++;
-            // Batch lightly to avoid decoding jank on the main thread.
-            if (i % 6 === 0) {
-                requestAnimationFrame(step);
-            } else {
-                step();
-            }
+    function pumpFrameQueue() {
+        const maxConcurrent = MOBILE_QUERY.matches ? 1 : 2;
+        while (activeLoads < maxConcurrent && queuedFrameSet.size > 0) {
+            const next = queuedFrameSet.values().next().value;
+            queuedFrameSet.delete(next);
+            loadImage(next);
         }
-        requestAnimationFrame(step);
+    }
+
+    function queueNearbyFrames(center) {
+        for (let offset = 0; offset <= FRAME_LOOKAHEAD; offset++) {
+            enqueueFrame(center + offset);
+            enqueueFrame(center - offset);
+        }
+        pumpFrameQueue();
+    }
+
+    function queueInitialKeyframes() {
+        for (let i = 0; i < TOTAL_FRAMES; i += INITIAL_KEYFRAME_STEP) {
+            enqueueFrame(i);
+        }
+        enqueueFrame(TOTAL_FRAMES - 1);
+    }
+
+    // ── Progressive load — prioritise first frame and on-scroll frames ─
+    function startLoading() {
+        if (loadingBar) {
+            loadingBar.style.display = 'block';
+            loadingBar.style.opacity = '1';
+        }
+        loadingBarHidden = false;
+        loadingBarTimer = setTimeout(hideLoadingBar, MAX_VISIBLE_LOADING_MS);
+
+        enqueueFrame(0);
+        queueNearbyFrames(Math.round(getFrameFromScroll()));
+
+        if ('requestIdleCallback' in window) {
+            requestIdleCallback(() => {
+                queueInitialKeyframes();
+                pumpFrameQueue();
+            }, { timeout: 1800 });
+        } else {
+            setTimeout(() => {
+                queueInitialKeyframes();
+                pumpFrameQueue();
+            }, 1800);
+        }
     }
 
     function initMobileMenu() {
@@ -312,7 +371,11 @@ function showToast(message, type = 'info') {
         if (!list || !window.HostelAPI) return;
 
         try {
-            const notices = await window.HostelAPI.getNotices();
+            const notices = await window.HostelAPI.getNotices({
+                background: true,
+                loading: false,
+                timeoutMs: 1500
+            });
             const allNotices = notices || [];
             let homepageNotices = allNotices.filter(notice => {
                 const audience = String(notice.Audience || notice.audience || '').trim().toLowerCase();
@@ -376,6 +439,7 @@ function showToast(message, type = 'info') {
 
         // Start loading frames
         startLoading();
+        onScroll();
     }
 
     // ── Wait for DOM ─────────────────────────────────────────

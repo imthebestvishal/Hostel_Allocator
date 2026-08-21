@@ -7,6 +7,7 @@
     <meta name="description" content="Smart Hostel Allocation & Management System for GGSIPU students. Apply online, track status, and get fair automated allocations.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" as="image" href="assets/sequence/frame_0007.jpg" fetchpriority="high">
     <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css?v=allocation-timeline">
     
@@ -100,7 +101,7 @@
     <section class="about-section" id="about">
         <div class="about-inner">
             <div class="about-image-wrap">
-                <img src="assets/gallery/campus-aerial.jpg" alt="GGSIPU East Delhi Campus" class="about-img">
+                <img src="assets/gallery/campus-aerial.jpg" alt="GGSIPU East Delhi Campus" class="about-img" loading="lazy" decoding="async">
                 <div class="about-img-badge">
                     <span>Est. 2021</span>
                 </div>
@@ -240,7 +241,7 @@
     <footer class="footer">
         <div class="footer-inner">
             <div class="footer-brand">
-                <img src="assets/logo/ipu-logo.png" alt="GGSIPU" class="footer-logo">
+                <img src="assets/logo/ipu-logo.png" alt="GGSIPU" class="footer-logo" loading="lazy" decoding="async">
                 <div>
                     <p class="footer-name">GGSIPU Hostel Allocator</p>
                     <p class="footer-sub">Guru Gobind Singh Indraprastha University</p>
@@ -251,7 +252,7 @@
     </footer>
 
 </div><!-- /.site-wrapper -->
-    <script src="api.js"></script>
-    <script src="script.js"></script>
+    <script src="api.js" defer></script>
+    <script src="script.js" defer></script>
 </body>
 </html>

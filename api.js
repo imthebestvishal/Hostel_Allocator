@@ -410,11 +410,17 @@ function localCalculateProbability(student) {
 }
 
 // ── Core request function ─────────────────────────────────────────────────
-async function gasRequest(action, method = 'GET', data = null, params = null) {
-  return window.AppLoading.withTask(API_LOADING_LABELS[action] || 'Loading', async () => {
+async function gasRequest(action, method = 'GET', data = null, params = null, requestOptions = {}) {
+  const runRequest = async () => {
+    let timeoutId = null;
     try {
     let url = GAS_CONFIG.URL;
     let options = { method };
+    const controller = requestOptions.timeoutMs ? new AbortController() : null;
+    if (controller) {
+      options.signal = controller.signal;
+      timeoutId = setTimeout(() => controller.abort(), requestOptions.timeoutMs);
+    }
 
     if (method === 'GET') {
       const searchParams = new URLSearchParams({ action });
@@ -429,16 +435,29 @@ async function gasRequest(action, method = 'GET', data = null, params = null) {
     }
 
     const response = await fetch(url, options);
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      timeoutId = null;
+    }
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
     const result = await response.json();
     return result;
 
   } catch (error) {
-    console.warn(`[HostelAPI] ${action} API request failed. Using local fallback handler.`, error);
+    if (timeoutId) clearTimeout(timeoutId);
+    if (!(requestOptions.background && error && error.name === 'AbortError')) {
+      console.warn(`[HostelAPI] ${action} API request failed. Using local fallback handler.`, error);
+    }
     return handleLocalFallback(action, data, params);
   }
-  });
+  };
+
+  if (requestOptions.loading === false || requestOptions.background) {
+    return runRequest();
+  }
+
+  return window.AppLoading.withTask(API_LOADING_LABELS[action] || 'Loading', runRequest);
 }
 
 function getLocalStudents() {
@@ -915,7 +934,7 @@ window.HostelAPI = {
   getRooms:         ()         => gasRequest('getRooms',         'GET'),
   getAllocations:    ()         => gasRequest('getAllocations',   'GET'),
   getGrievances:    ()         => gasRequest('getGrievances',    'GET'),
-  getNotices:       ()         => gasRequest('getNotices',       'GET'),
+  getNotices:       (options = {}) => gasRequest('getNotices',       'GET', null, null, options),
   getSettingsPublic: ()        => gasRequest('getSettingsPublic', 'GET'),
   getAllocationPreview: ()     => gasRequest('getAllocationPreview', 'GET'),
   runAllocation:    ()         => gasRequest('runAllocation',    'GET'),
