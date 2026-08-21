@@ -854,6 +854,33 @@
         .modal-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 12px; }
         .modal-body { color: var(--c-muted); margin-bottom: 24px; font-size: 0.95rem; line-height: 1.5; }
         .modal-actions { display: flex; gap: 12px; justify-content: center; }
+        .allocation-detail-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            text-align: left;
+            margin: 18px 0 22px;
+        }
+        .allocation-detail-item {
+            border: 1px solid var(--c-border);
+            border-radius: 6px;
+            padding: 12px;
+            background: #f8fafc;
+        }
+        .allocation-detail-label {
+            display: block;
+            color: var(--c-muted);
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+        .allocation-detail-value {
+            color: var(--c-dark);
+            font-weight: 600;
+            overflow-wrap: anywhere;
+        }
 
         .loader {
             border: 2px solid rgba(35,53,113,.16);
@@ -1243,6 +1270,17 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="allocationDetailsModal">
+        <div class="modal-content" style="max-width: 640px;">
+            <h2 class="modal-title">Allocated Student Details</h2>
+            <p class="modal-body" id="allocationDetailsMeta" style="margin-bottom:0;">Review allocation details.</p>
+            <div class="allocation-detail-grid" id="allocationDetailsGrid"></div>
+            <div class="modal-actions">
+                <button class="btn-outline" onclick="closeAllocationDetailsModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal-overlay" id="documentReviewModal">
         <div class="modal-content" style="max-width: 860px;">
             <h2 class="modal-title" style="margin-bottom:4px; text-align:center;">Document Verification</h2>
@@ -1330,6 +1368,7 @@
 
         let currentData = [];
         let currentStudentsData = [];
+        let currentRenderedAllocations = [];
         let currentDocumentStudent = null;
         let pendingDocumentConfirmation = null;
         let currentRoomsData = [];
@@ -1390,7 +1429,11 @@
                     renderRooms(data);
                 } else if (target === 'allocations') {
                     document.getElementById('allocations-tbody').innerHTML = '<tr><td colspan="9" style="text-align:center"><div class="loader"></div></td></tr>';
-                    const data = await HostelAPI.getAllocations();
+                    const [data, students] = await Promise.all([
+                        HostelAPI.getAllocations(),
+                        currentStudentsData && currentStudentsData.length ? Promise.resolve(currentStudentsData) : HostelAPI.getStudents()
+                    ]);
+                    currentStudentsData = students || [];
                     currentData = data;
                     renderAllocations(data);
                 } else if (target === 'grievances') {
@@ -1533,11 +1576,12 @@
                     recentBody.innerHTML = '';
                     if (data.recentAllocations && data.recentAllocations.length > 0) {
                         data.recentAllocations.forEach(a => {
+                            const alloc = normalizeAllocationRecord(a);
                             recentBody.innerHTML += `<tr>
-                                <td>${a.EnrollmentNo || a.enrollment || '-'}</td>
-                                <td>${a.StudentName || a.name || '-'}</td>
-                                <td>${a.Gender || '-'}</td>
-                                <td>${a.RoomNumber || a.room || '-'}</td>
+                                <td>${escapeHtml(alloc.EnrollmentNo || '-')}</td>
+                                <td>${escapeHtml(alloc.StudentName || '-')}</td>
+                                <td>${escapeHtml(alloc.Gender || '-')}</td>
+                                <td>${escapeHtml(alloc.RoomNumber || '-')}</td>
                             </tr>`;
                         });
                     } else {
@@ -1557,9 +1601,10 @@
             const priorityFilter = document.getElementById('alloc-filter-priority')?.value || '';
 
             const filtered = currentData.filter(a => {
-                const g = String(getStudentValue(a, 'Gender')).toLowerCase();
-                const s = String(getStudentValue(a, 'Status')).toLowerCase();
-                const p = String(getStudentValue(a, 'Priority'));
+                const alloc = normalizeAllocationRecord(a);
+                const g = String(alloc.Gender || '').toLowerCase();
+                const s = String(alloc.Status || '').toLowerCase();
+                const p = String(alloc.Priority || '');
 
                 if (genderFilter && !g.includes(genderFilter)) return false;
                 if (statusFilter && !s.includes(statusFilter)) return false;
@@ -1600,6 +1645,68 @@
             return '';
         }
 
+        function getAllocationByPosition(record) {
+            const values = Object.values(record || {});
+            if (values.length < 12) return null;
+            return {
+                AllocationID: values[0],
+                Timestamp: values[1],
+                ApplicationID: values[2],
+                EnrollmentNo: values[3],
+                StudentName: values[4],
+                Gender: values[5],
+                RoomID: values[6],
+                RoomNumber: values[7],
+                HostelName: values[8],
+                Floor: values[9],
+                BedNumber: values[10],
+                Status: values[11],
+                LetterSent: values[12],
+                LetterSentAt: values[13]
+            };
+        }
+
+        function normalizeAllocationRecord(record) {
+            const direct = {
+                AllocationID: getStudentValue(record, 'AllocationID'),
+                Timestamp: getStudentValue(record, 'Timestamp'),
+                ApplicationID: getStudentValue(record, 'ApplicationID'),
+                EnrollmentNo: getStudentValue(record, 'EnrollmentNo'),
+                StudentName: getStudentValue(record, 'StudentName'),
+                Gender: getStudentValue(record, 'Gender'),
+                RoomID: getStudentValue(record, 'RoomID'),
+                RoomNumber: getStudentValue(record, 'RoomNumber'),
+                HostelName: getStudentValue(record, 'HostelName'),
+                Floor: getStudentValue(record, 'Floor'),
+                BedNumber: getStudentValue(record, 'BedNumber'),
+                Status: getStudentValue(record, 'Status'),
+                LetterSent: getStudentValue(record, 'LetterSent'),
+                LetterSentAt: getStudentValue(record, 'LetterSentAt')
+            };
+
+            const hasDirectDetails = direct.EnrollmentNo || direct.StudentName || direct.RoomNumber || direct.HostelName;
+            const positional = hasDirectDetails ? {} : (getAllocationByPosition(record) || {});
+            const merged = { ...positional, ...Object.fromEntries(Object.entries(direct).filter(([, value]) => value !== '' && value !== undefined && value !== null)) };
+
+            const student = (currentStudentsData || []).find(s => {
+                const enroll = String(getStudentValue(s, 'EnrollmentNo')).trim();
+                return enroll && enroll === String(merged.EnrollmentNo || '').trim();
+            });
+
+            if (student) {
+                merged.Category = getStudentValue(student, 'Category');
+                merged.Priority = getStudentValue(student, 'Priority');
+                merged.Programme = getStudentValue(student, 'Programme');
+                merged.Branch = getStudentValue(student, 'Branch');
+                merged.DistanceKm = getStudentValue(student, 'DistanceKm');
+                merged.TwelfthMarks = getStudentValue(student, 'TwelfthMarks');
+                merged.Email = getStudentValue(student, 'Email');
+                merged.Phone = getStudentValue(student, 'Phone');
+            }
+
+            return merged;
+        }
+
         function escapeHtml(value) {
             return String(value ?? '').replace(/[&<>"']/g, ch => ({
                 '&': '&amp;',
@@ -1623,37 +1730,85 @@
             const allocBody = document.getElementById('allocations-tbody');
             if (!allocBody) return;
             allocBody.innerHTML = '';
+            currentRenderedAllocations = allocations || [];
             
             if (!allocations || allocations.length === 0) {
                 allocBody.innerHTML = '<tr><td colspan="9" style="text-align:center; color: #888; padding: 24px;">No allocations generated yet. Click "Run Allocation Engine" to allocate pending applications.</td></tr>';
                 return;
             }
             
-            allocations.forEach(a => {
-                const enroll = getStudentValue(a, 'EnrollmentNo') || a.enrollmentNo || '-';
-                const name = getStudentValue(a, 'StudentName') || a.name || '-';
-                const gender = getStudentValue(a, 'Gender') || a.gender || '-';
-                const category = getStudentValue(a, 'Category') || a.category || '-';
-                const priority = getStudentValue(a, 'Priority') || a.priority || '-';
-                const room = getStudentValue(a, 'RoomNumber') || a.roomNumber || '-';
-                const hostel = getStudentValue(a, 'HostelName') || a.hostelName || '-';
-                const status = getStudentValue(a, 'Status') || a.status || 'Active';
+            allocations.forEach((a, index) => {
+                const alloc = normalizeAllocationRecord(a);
+                const enroll = alloc.EnrollmentNo || '-';
+                const name = alloc.StudentName || '-';
+                const gender = alloc.Gender || '-';
+                const category = alloc.Category || '-';
+                const priority = alloc.Priority || '-';
+                const room = alloc.RoomNumber || alloc.RoomID || '-';
+                const hostel = alloc.HostelName || '-';
+                const status = alloc.Status || 'Active';
                 
                 const statusStr = String(status).toLowerCase();
                 const badgeClass = (statusStr === 'confirmed' || statusStr === 'active' || statusStr === 'allocated') ? 'status-allocated' : (statusStr === 'waitlisted' ? 'status-waitlisted' : 'status-pending');
                 
                 allocBody.innerHTML += `<tr>
-                    <td>${enroll}</td>
-                    <td>${name}</td>
-                    <td>${gender}</td>
-                    <td>${category}</td>
-                    <td>${priority ? 'Priority ' + priority : '-'}</td>
-                    <td>${room}</td>
-                    <td>${hostel}</td>
-                    <td><span class="status-badge ${badgeClass}">${status}</span></td>
-                    <td><button class="btn-outline" style="padding:4px 8px; font-size:0.8rem;" onclick="showAdminToast('Room ${room} (${hostel})', 'info')">Details</button></td>
+                    <td>${escapeHtml(enroll)}</td>
+                    <td>${escapeHtml(name)}</td>
+                    <td>${escapeHtml(gender)}</td>
+                    <td>${escapeHtml(category)}</td>
+                    <td>${priority && priority !== '-' ? 'Priority ' + escapeHtml(priority) : '-'}</td>
+                    <td>${escapeHtml(room)}</td>
+                    <td>${escapeHtml(hostel)}</td>
+                    <td><span class="status-badge ${badgeClass}">${escapeHtml(status)}</span></td>
+                    <td><button class="btn-outline" style="padding:4px 8px; font-size:0.8rem;" onclick="showAllocationDetails(${index})">Details</button></td>
                 </tr>`;
             });
+        }
+
+        function showAllocationDetails(index) {
+            const record = currentRenderedAllocations && currentRenderedAllocations[index];
+            if (!record) {
+                showAdminToast('Allocation record not found.', 'error');
+                return;
+            }
+            const alloc = normalizeAllocationRecord(record);
+            const modal = document.getElementById('allocationDetailsModal');
+            const meta = document.getElementById('allocationDetailsMeta');
+            const grid = document.getElementById('allocationDetailsGrid');
+            if (!modal || !meta || !grid) return;
+
+            meta.textContent = `${alloc.StudentName || 'Student'} (${alloc.EnrollmentNo || 'Enrollment not available'})`;
+            const details = [
+                ['Enrollment No', alloc.EnrollmentNo],
+                ['Name', alloc.StudentName],
+                ['Gender', alloc.Gender],
+                ['Category', alloc.Category],
+                ['Priority', alloc.Priority ? `Priority ${alloc.Priority}` : ''],
+                ['Programme', [alloc.Programme, alloc.Branch].filter(Boolean).join(' - ')],
+                ['12th Marks', alloc.TwelfthMarks],
+                ['Distance', alloc.DistanceKm ? `${alloc.DistanceKm} km` : ''],
+                ['Hostel', alloc.HostelName],
+                ['Room', alloc.RoomNumber || alloc.RoomID],
+                ['Floor', alloc.Floor],
+                ['Bed', alloc.BedNumber],
+                ['Status', alloc.Status || 'Active'],
+                ['Allocation ID', alloc.AllocationID],
+                ['Allocated At', alloc.Timestamp],
+                ['Letter Sent', alloc.LetterSent]
+            ];
+
+            grid.innerHTML = details.map(([label, value]) => `
+                <div class="allocation-detail-item">
+                    <span class="allocation-detail-label">${escapeHtml(label)}</span>
+                    <span class="allocation-detail-value">${escapeHtml(value || '-')}</span>
+                </div>
+            `).join('');
+            modal.classList.add('active');
+        }
+
+        function closeAllocationDetailsModal() {
+            const modal = document.getElementById('allocationDetailsModal');
+            if (modal) modal.classList.remove('active');
         }
 
         function renderStudents(students) {
