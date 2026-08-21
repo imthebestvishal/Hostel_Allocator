@@ -1369,6 +1369,8 @@
         let currentData = [];
         let currentStudentsData = [];
         let currentRenderedAllocations = [];
+        let currentAllocationsData = [];
+        let currentAllocationOccupancyMap = {};
         let currentDocumentStudent = null;
         let pendingDocumentConfirmation = null;
         let currentRoomsData = [];
@@ -1424,7 +1426,12 @@
                 } else if (target === 'rooms') {
                     document.getElementById('bh-rooms').innerHTML = '<div class="loader"></div>';
                     document.getElementById('gh-rooms').innerHTML = '<div class="loader"></div>';
-                    const data = await HostelAPI.getRooms();
+                    const [data, allocations] = await Promise.all([
+                        HostelAPI.getRooms(),
+                        HostelAPI.getAllocations()
+                    ]);
+                    currentAllocationsData = Array.isArray(allocations) ? allocations : [];
+                    currentAllocationOccupancyMap = buildAllocationOccupancyMap(currentAllocationsData);
                     currentData = data;
                     renderRooms(data);
                 } else if (target === 'allocations') {
@@ -1434,6 +1441,8 @@
                         currentStudentsData && currentStudentsData.length ? Promise.resolve(currentStudentsData) : HostelAPI.getStudents()
                     ]);
                     currentStudentsData = students || [];
+                    currentAllocationsData = Array.isArray(data) ? data : [];
+                    currentAllocationOccupancyMap = buildAllocationOccupancyMap(currentAllocationsData);
                     currentData = data;
                     renderAllocations(data);
                 } else if (target === 'grievances') {
@@ -2245,13 +2254,49 @@
             applyRoomHeatFilters();
         }
 
+        function normalizeRoomKey(value) {
+            return String(value || '').trim().toLowerCase().replace(/\s+/g, '').replace(/[–—]/g, '-');
+        }
+
+        function addRoomOccupancyKey(map, value) {
+            const key = normalizeRoomKey(value);
+            if (!key) return;
+            map[key] = (map[key] || 0) + 1;
+        }
+
+        function buildAllocationOccupancyMap(allocations) {
+            const map = {};
+            (allocations || []).forEach(record => {
+                const allocation = normalizeAllocationRecord(record);
+                const status = String(allocation.Status || 'Active').toLowerCase();
+                if (status && !['active', 'allocated', 'confirmed'].includes(status)) return;
+                addRoomOccupancyKey(map, allocation.RoomID);
+                addRoomOccupancyKey(map, allocation.RoomNumber);
+            });
+            return map;
+        }
+
+        function getAllocatedCountForRoom(room) {
+            const roomId = normalizeRoomKey(getStudentValue(room, 'RoomID'));
+            const roomNumber = normalizeRoomKey(getStudentValue(room, 'RoomNumber'));
+            return Math.max(
+                roomId ? currentAllocationOccupancyMap[roomId] || 0 : 0,
+                roomNumber ? currentAllocationOccupancyMap[roomNumber] || 0 : 0
+            );
+        }
+
         function getRoomOccupancyMetrics(room) {
             const capacity = Number(getStudentValue(room, 'Capacity')) || 0;
-            const occupied = Number(getStudentValue(room, 'Occupied')) || 0;
+            const sheetOccupied = Number(getStudentValue(room, 'Occupied')) || 0;
+            const allocationOccupied = getAllocatedCountForRoom(room);
+            const occupied = Math.min(capacity || Math.max(sheetOccupied, allocationOccupied), Math.max(sheetOccupied, allocationOccupied));
             const rawVacant = getStudentValue(room, 'VacantBeds');
-            const vacant = rawVacant !== '' && rawVacant !== undefined && rawVacant !== null
+            const sheetVacant = rawVacant !== '' && rawVacant !== undefined && rawVacant !== null
                 ? Number(rawVacant) || 0
                 : Math.max(0, capacity - occupied);
+            const vacant = allocationOccupied > sheetOccupied
+                ? Math.max(0, capacity - occupied)
+                : sheetVacant;
             return { capacity, occupied, vacant };
         }
 
