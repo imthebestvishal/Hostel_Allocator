@@ -1648,6 +1648,50 @@
         function getAllocationByPosition(record) {
             const values = Object.values(record || {});
             if (values.length < 12) return null;
+
+            const looksLikeAllocationId = value => /^ALC-/i.test(String(value || '').trim());
+            const looksLikeAppId = value => /^GGSIPU-/i.test(String(value || '').trim());
+            const secondColumnIsAllocationId = looksLikeAllocationId(values[1]);
+            const firstColumnIsAllocationId = looksLikeAllocationId(values[0]);
+
+            if (secondColumnIsAllocationId && looksLikeAppId(values[3])) {
+                return {
+                    EnrollmentNo: values[0],
+                    AllocationID: values[1],
+                    Timestamp: values[2],
+                    ApplicationID: values[3],
+                    StudentName: values[4],
+                    Gender: values[5],
+                    RoomID: values[6],
+                    RoomNumber: values[7],
+                    HostelName: values[8],
+                    Floor: values[9],
+                    BedNumber: values[10],
+                    Status: values[11],
+                    LetterSent: values[12],
+                    LetterSentAt: values[13]
+                };
+            }
+
+            if (!firstColumnIsAllocationId && !looksLikeAppId(values[2]) && looksLikeAppId(values[3])) {
+                return {
+                    EnrollmentNo: values[0],
+                    AllocationID: values[1],
+                    Timestamp: values[2],
+                    ApplicationID: values[3],
+                    StudentName: values[4],
+                    Gender: values[5],
+                    RoomID: values[6],
+                    RoomNumber: values[7],
+                    HostelName: values[8],
+                    Floor: values[9],
+                    BedNumber: values[10],
+                    Status: values[11],
+                    LetterSent: values[12],
+                    LetterSentAt: values[13]
+                };
+            }
+
             return {
                 AllocationID: values[0],
                 Timestamp: values[1],
@@ -1737,7 +1781,7 @@
                 return;
             }
             
-            allocations.forEach((a, index) => {
+            allocBody.innerHTML = allocations.map((a, index) => {
                 const alloc = normalizeAllocationRecord(a);
                 const enroll = alloc.EnrollmentNo || '-';
                 const name = alloc.StudentName || '-';
@@ -1751,7 +1795,7 @@
                 const statusStr = String(status).toLowerCase();
                 const badgeClass = (statusStr === 'confirmed' || statusStr === 'active' || statusStr === 'allocated') ? 'status-allocated' : (statusStr === 'waitlisted' ? 'status-waitlisted' : 'status-pending');
                 
-                allocBody.innerHTML += `<tr>
+                return `<tr>
                     <td>${escapeHtml(enroll)}</td>
                     <td>${escapeHtml(name)}</td>
                     <td>${escapeHtml(gender)}</td>
@@ -1762,7 +1806,7 @@
                     <td><span class="status-badge ${badgeClass}">${escapeHtml(status)}</span></td>
                     <td><button class="btn-outline" style="padding:4px 8px; font-size:0.8rem;" onclick="showAllocationDetails(${index})">Details</button></td>
                 </tr>`;
-            });
+            }).join('');
         }
 
         function showAllocationDetails(index) {
