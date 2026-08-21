@@ -24,6 +24,7 @@ function doGet(e) {
       case 'getStudentStatus': result = getStudentStatus(e.parameter.enrollmentNo, e.parameter.dob); break;
       case 'runAllocation':   result = runAllocationEngine(); break;
       case 'getAllocationPreview': result = getAllocationPreview(); break;
+      case 'resetVerifiedTestStudentsForReallocation': result = resetVerifiedTestStudentsForReallocation(); break;
       case 'sendLetters':     result = sendAllotmentLetters(); break;
       case 'reseedRooms':     result = resetAndSeedRooms(); break;
       case 'getSettingsPublic': result = getSettingsPublic(); break;

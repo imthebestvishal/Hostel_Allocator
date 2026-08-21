@@ -315,6 +315,7 @@ function promoteFromWaitlist() {
 
 function resetVerifiedTestStudentsForReallocation() {
   const startedAt = Date.now();
+  clearAllocationRunningFlag();
   const studentSheet = getSheet('Students');
   const studentData = studentSheet.getDataRange().getValues();
   if (studentData.length <= 1) {
@@ -376,6 +377,19 @@ function resetVerifiedTestStudentsForReallocation() {
     roomsRecomputed: roomsRecomputed,
     durationMs: Date.now() - startedAt
   };
+}
+
+function clearAllocationRunningFlag() {
+  const settingsSheet = getSheet('Settings');
+  if (!settingsSheet) return false;
+  const settingsData = settingsSheet.getDataRange().getValues();
+  for (let i = 1; i < settingsData.length; i++) {
+    if (settingsData[i][0] === 'ALLOCATION_RUNNING') {
+      settingsSheet.getRange(i + 1, 2).setValue('false');
+      return true;
+    }
+  }
+  return false;
 }
 
 function removeRowsForEnrollments(sheetName, enrollments, options) {
