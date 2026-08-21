@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Student Portal - GGSIPU Hostel Allocator</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="hostel-map.css">
     <style>
         :root {
             --c-primary: hsl(228, 52%, 29%);
@@ -819,61 +820,251 @@
             </div>
 
             <!-- TAB: ROOM -->
-            <div id="tab-room" class="tab-content">
-                <div class="grid-2">
-                    <div class="card">
-                        <div class="card-header">
-                            <h3 class="card-title">Hostel Layout</h3>
-                        </div>
-                        <div class="room-map">
-                            <p style="font-weight: 500;" id="mapHostelTitle">East Delhi Campus Hostel</p>
-                            <p style="font-size: 13px; margin-top: 4px;">Highlighted cell is your assigned room</p>
-                            <div class="room-grid" id="mapRoomGrid">
-                                <div class="room-cell">101</div>
-                                <div class="room-cell">102</div>
-                                <div class="room-cell">103</div>
-                                <div class="room-cell">104</div>
-                                <div class="room-cell my-room" id="myRoomCell">Assigned</div>
-                                <div class="room-cell">106</div>
-                            </div>
-                        </div>
-                        <button class="btn btn-outline" style="width: 100%; margin-top: 16px;" onclick="openModal('transfer-modal')">Request Room Transfer</button>
-                    </div>
+<div id="tab-room" class="tab-content">
 
-                    <div class="card">
-                        <div class="card-header">
-                            <h3 class="card-title">Allotment Letter</h3>
-                            <button class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;" onclick="downloadAllotmentPDF()">Download Letter</button>
-                        </div>
-                        <div class="allotment-letter" id="allotmentLetterBox">
-                            <div class="letter-header">
-                                <img src="assets/logo/ipu-logo.png" alt="Logo" onerror="this.style.display='none'">
-                                <div style="font-weight: bold; font-size: 16px;">GURU GOBIND SINGH INDRAPRASTHA UNIVERSITY</div>
-                                <div style="font-size: 12px; color: #555;">East Delhi Campus, Surajmal Vihar, New Delhi</div>
-                                <div style="font-weight: bold; margin-top: 14px; text-decoration: underline; font-size: 14px;">PROVISIONAL HOSTEL ALLOTMENT LETTER</div>
-                            </div>
-                            <div class="letter-body" style="font-size: 13px; margin-top: 15px;">
-                                <p style="text-align: right; margin-bottom: 15px;" id="letterDate">Date: 15 Aug 2026</p>
-                                <p>To,</p>
-                                <p style="font-weight: bold;" id="letterName">Student Name</p>
-                                <p id="letterEnroll">Enrollment No: -</p>
-                                <br>
-                                <p><strong>Subject:</strong> Provisional Hostel Accommodation Allotment</p>
-                                <br>
-                                <p>Dear Student,</p>
-                                <p>With reference to your application, you are hereby provisionally allotted accommodation as per details below:</p>
-                                <ul style="margin: 12px 0 12px 20px;">
-                                    <li><strong>Hostel:</strong> <span id="letterHostelVal">East Delhi Campus Hostel</span></li>
-                                    <li><strong>Room No:</strong> <span id="letterRoomVal">TBD</span></li>
-                                </ul>
-                                <p>Please report to the Warden Office with original documents and fee receipt for check-in.</p>
-                                <br>
-                                <p style="text-align: right; margin-top: 30px; font-weight: bold;">Chief Warden<br>GGSIPU Hostels</p>
-                            </div>
-                        </div>
-                    </div>
+    <!-- HOSTEL MAP -->
+    <div class="card">
+
+        <div class="card-header">
+            <h3 class="card-title">Hostel Layout</h3>
+        </div>
+
+        <div class="room-map">
+
+            <p
+                style="font-weight: 500;"
+                id="mapHostelTitle"
+            >
+                East Delhi Campus Hostel
+            </p>
+
+            <p
+                style="font-size: 13px; margin-top: 4px;"
+            >
+                Highlighted cell is your assigned room
+            </p>
+
+            <!-- MAP + VIRTUAL TOUR -->
+            <div id="hostelMapMount">
+
+                <div class="hostel-map-loading">
+                    Loading hostel map...
                 </div>
+
             </div>
+
+        </div>
+
+        <button
+            class="btn btn-outline"
+            style="width: 100%; margin-top: 16px;"
+            onclick="openModal('transfer-modal')"
+        >
+            Request Room Transfer
+        </button>
+
+    </div>
+
+
+    <!-- ALLOTMENT LETTER - NOW BELOW MAP -->
+    <div
+        class="card allotment-letter-section"
+    >
+
+        <div class="card-header">
+
+            <h3 class="card-title">
+                Allotment Letter
+            </h3>
+
+            <button
+                class="btn btn-primary"
+                style="padding: 6px 12px; font-size: 12px;"
+                onclick="downloadAllotmentPDF()"
+            >
+                Download Letter
+            </button>
+
+        </div>
+
+
+        <div
+            class="allotment-letter"
+            id="allotmentLetterBox"
+        >
+
+            <div class="letter-header">
+
+                <img
+                    src="assets/logo/ipu-logo.png"
+                    alt="Logo"
+                    onerror="this.style.display='none'"
+                >
+
+                <div
+                    style="
+                        font-weight: bold;
+                        font-size: 16px;
+                    "
+                >
+                    GURU GOBIND SINGH INDRAPRASTHA UNIVERSITY
+                </div>
+
+                <div
+                    style="
+                        font-size: 12px;
+                        color: #555;
+                    "
+                >
+                    East Delhi Campus,
+                    Surajmal Vihar,
+                    New Delhi
+                </div>
+
+                <div
+                    style="
+                        font-weight: bold;
+                        margin-top: 14px;
+                        text-decoration: underline;
+                        font-size: 14px;
+                    "
+                >
+                    PROVISIONAL HOSTEL ALLOTMENT LETTER
+                </div>
+
+            </div>
+
+
+            <div
+                class="letter-body"
+                style="
+                    font-size: 13px;
+                    margin-top: 15px;
+                "
+            >
+
+                <p
+                    style="
+                        text-align: right;
+                        margin-bottom: 15px;
+                    "
+                    id="letterDate"
+                >
+                    Date: 15 Aug 2026
+                </p>
+
+
+                <p>To,</p>
+
+                <p
+                    style="font-weight: bold;"
+                    id="letterName"
+                >
+                    Student Name
+                </p>
+
+                <p id="letterEnroll">
+                    Enrollment No: -
+                </p>
+
+                <br>
+
+
+                <p>
+
+                    <strong>
+                        Subject:
+                    </strong>
+
+                    Provisional Hostel
+                    Accommodation Allotment
+
+                </p>
+
+                <br>
+
+
+                <p>
+                    Dear Student,
+                </p>
+
+
+                <p>
+
+                    With reference to your application,
+                    you are hereby provisionally allotted
+                    accommodation as per details below:
+
+                </p>
+
+
+                <ul
+                    style="
+                        margin:
+                        12px 0
+                        12px 20px;
+                    "
+                >
+
+                    <li>
+
+                        <strong>
+                            Hostel:
+                        </strong>
+
+                        <span id="letterHostelVal">
+                            East Delhi Campus Hostel
+                        </span>
+
+                    </li>
+
+
+                    <li>
+
+                        <strong>
+                            Room No:
+                        </strong>
+
+                        <span id="letterRoomVal">
+                            TBD
+                        </span>
+
+                    </li>
+
+                </ul>
+
+
+                <p>
+
+                    Please report to the Warden Office
+                    with original documents and fee receipt
+                    for check-in.
+
+                </p>
+
+                <br>
+
+
+                <p
+                    style="
+                        text-align: right;
+                        margin-top: 30px;
+                        font-weight: bold;
+                    "
+                >
+
+                    Chief Warden<br>
+                    GGSIPU Hostels
+
+                </p>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
 
             <!-- TAB: GRIEVANCE -->
             <div id="tab-grievance" class="tab-content">
@@ -1038,6 +1229,11 @@
                     
                     const studentName = statusData.name || 'Student';
                     currentStudentStatus = statusData;
+                    window.currentStudentStatus = statusData;
+
+                    window.dispatchEvent(
+                        new CustomEvent('hostelStudentReady')
+                    );
                     document.querySelector('#dashboard-state .avatar').textContent = studentName[0];
                     const nameSpan = document.querySelector('#dashboard-state .user-info span');
                     if (nameSpan) nameSpan.textContent = studentName;
@@ -1329,6 +1525,7 @@
             loginState.classList.remove('hidden');
             loginForm.reset();
             currentStudentStatus = null;
+            window.currentStudentStatus = null;
             switchTab('overview'); // reset to first tab
             if (window.HostelChatbot) window.HostelChatbot.reset();
         });
@@ -1388,5 +1585,6 @@
             }, 3000);
         }
     </script>
+    <script src="hostel-map.js"></script>
 </body>
 </html>

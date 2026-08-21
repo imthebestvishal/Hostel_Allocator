@@ -1,0 +1,58 @@
+<?xml version="1.0"?>
+<svg width="640" height="480" xmlns="http://www.w3.org/2000/svg" xmlns:svg="http://www.w3.org/2000/svg">
+ <!-- Created with SVG-edit - https://github.com/SVG-Edit/svgedit-->
+ <g class="layer">
+  <title>Layer 1</title>
+  <rect fill="none" stroke="#000000" x="10.5" y="100.5" width="605" height="301" id="mainhall"/>
+  <path fill="none" stroke="#000000" d="m10.66,174.89l0,-74.5l94.5,0l0,74.5l-94.5,0z" id="washroom1"/>
+  <path fill="none" stroke="#000000" d="m10.5,401l0,-74.5l94.5,0l0,74.5l-94.5,0z" id="washroom4"/>
+  <path fill="none" stroke="#000000" d="m521,175.5l0,-74.5l94.5,0l0,74.5l-94.5,0z" id="washroom2"/>
+  <path fill="none" stroke="#000000" d="m521,401.5l0,-74.5l94.5,0l0,74.5l-94.5,0z" id="washroom3"/>
+  <rect fill="none" stroke="#000000" x="140.5" y="100.5" width="34" height="74.5" id="R01"/>
+  <rect fill="none" stroke="#000000" x="174.5" y="100.75" width="34" height="74.25" id="R02"/>
+  <rect fill="none" stroke="#000000" x="208.5" y="100.5" width="34" height="74.5" id="R03"/>
+  <rect fill="none" stroke="#000000" x="242.5" y="100.75" width="34" height="74.25" id="R04"/>
+  <rect fill="none" stroke="#000000" x="276.5" y="100.5" width="34" height="74.5" id="R05"/>
+  <rect fill="none" stroke="#000000" x="310.5" y="100.75" width="34" height="74.25" id="R06"/>
+  <rect fill="none" stroke="#000000" x="344.63" y="100.5" width="34" height="74.5" id="R07"/>
+  <rect fill="none" stroke="#000000" x="378.63" y="100.75" width="34" height="74.25" id="R08"/>
+  <rect fill="none" stroke="#000000" x="412.63" y="100.5" width="34" height="74.5" id="R09"/>
+  <rect fill="none" stroke="#000000" x="446.63" y="100.75" width="34" height="74.25" id="R10"/>
+  <rect fill="none" stroke="#000000" x="139.94" y="327" width="34" height="74.5" id="R20"/>
+  <rect fill="none" stroke="#000000" x="173.94" y="327.25" width="34" height="74.25" id="R19"/>
+  <rect fill="none" stroke="#000000" x="207.94" y="327" width="34" height="74.5" id="R18"/>
+  <rect fill="none" stroke="#000000" x="241.94" y="327.25" width="34" height="74.25" id="R17"/>
+  <rect fill="none" stroke="#000000" x="275.94" y="327" width="34" height="74.5" id="R16"/>
+  <rect fill="none" stroke="#000000" x="309.94" y="327.25" width="34" height="74.25" id="R15"/>
+  <rect fill="none" stroke="#000000" x="344.06" y="327" width="34" height="74.5" id="R14"/>
+  <rect fill="none" stroke="#000000" x="378.06" y="327.25" width="34" height="74.25" id="R13"/>
+  <rect fill="none" stroke="#000000" x="412.06" y="327" width="34" height="74.5" id="R12"/>
+  <rect fill="none" stroke="#000000" x="446.06" y="327.25" width="34" height="74.25" id="R11"/>
+  <rect fill="none" stroke="#000000" x="562.5" y="189.75" width="53" height="93" id="mess"/>
+  <text fill="#000000" stroke="#000000" stroke-width="0" x="30.5" y="135.5" id="svg_29" font-size="24" font-family="Helvetica" text-anchor="middle" xml:space="preserve" font-weight="bold" transform="matrix(0.577627 0 0 0.592027 41.6324 59.8952)">WASHROOM</text>
+  <text fill="#000000" stroke="#000000" stroke-width="0" x="30.5" y="135.5" id="svg_30" font-size="24" font-family="Helvetica" text-anchor="middle" xml:space="preserve" font-weight="bold" transform="matrix(0.577627 0 0 0.592027 41.2624 279.965)">WASHROOM</text>
+  <text fill="#000000" stroke="#000000" stroke-width="0" x="30.5" y="135.5" id="svg_31" font-size="24" font-family="Helvetica" text-anchor="middle" xml:space="preserve" font-weight="bold" transform="matrix(0.577627 0 0 0.592027 551.387 289.965)">WASHROOM</text>
+  <text fill="#000000" stroke="#000000" stroke-width="0" x="30.5" y="135.5" id="svg_32" font-size="24" font-family="Helvetica" text-anchor="middle" xml:space="preserve" font-weight="bold" transform="matrix(0.577627 0 0 0.592027 550.887 59.9652)">WASHROOM</text>
+  <text fill="#000000" stroke="#000000" stroke-width="0" x="30.5" y="135.5" id="svg_33" font-size="24" font-family="Helvetica" text-anchor="middle" xml:space="preserve" font-weight="bold" transform="rotate(90 584.755 237.5) matrix(0.577627 0 0 0.592027 567.137 162.215)">MESS</text>
+  <text fill="#000000" stroke="#000000" stroke-width="0" x="30.5" y="135.5" id="svg_34" font-size="24" font-family="Helvetica" text-anchor="middle" xml:space="preserve" font-weight="bold" transform="matrix(0.577627 0 0 0.592027 141.512 59.9652)">01</text>
+  <text fill="#000000" stroke="#000000" stroke-width="0" x="30.5" y="135.5" id="svg_35" font-size="24" font-family="Helvetica" text-anchor="middle" xml:space="preserve" font-weight="bold" transform="matrix(0.577627 0 0 0.592027 171.507 59.9652)">02</text>
+  <text fill="#000000" stroke="#000000" stroke-width="0" x="30.5" y="135.5" id="svg_36" font-size="24" font-family="Helvetica" text-anchor="middle" xml:space="preserve" font-weight="bold" transform="matrix(0.577627 0 0 0.592027 310.757 59.9652)" style="cursor: move;">06</text>
+  <text fill="#000000" stroke="#000000" stroke-width="0" x="30.5" y="135.5" id="svg_37" font-size="24" font-family="Helvetica" text-anchor="middle" xml:space="preserve" font-weight="bold" transform="matrix(0.577627 0 0 0.592027 275.257 59.9652)" style="cursor: move;">05</text>
+  <text fill="#000000" stroke="#000000" stroke-width="0" x="30.5" y="135.5" id="svg_38" font-size="24" font-family="Helvetica" text-anchor="middle" xml:space="preserve" font-weight="bold" transform="matrix(0.577627 0 0 0.592027 243.007 59.9652)" style="cursor: move;">04</text>
+  <text fill="#000000" stroke="#000000" stroke-width="0" x="30.5" y="135.5" id="svg_39" font-size="24" font-family="Helvetica" text-anchor="middle" xml:space="preserve" font-weight="bold" transform="matrix(0.577627 0 0 0.592027 207.007 59.9652)" style="cursor: move;">03</text>
+  <text fill="#000000" stroke="#000000" stroke-width="0" x="30.5" y="135.5" id="svg_42" font-size="24" font-family="Helvetica" text-anchor="middle" xml:space="preserve" font-weight="bold" transform="matrix(0.577627 0 0 0.592027 412.512 59.9652)">09</text>
+  <text fill="#000000" stroke="#000000" stroke-width="0" x="30.5" y="135.5" id="svg_41" font-size="24" font-family="Helvetica" text-anchor="middle" xml:space="preserve" font-weight="bold" transform="matrix(0.577627 0 0 0.592027 377.012 59.9652)" style="cursor: move;">08</text>
+  <text fill="#000000" stroke="#000000" stroke-width="0" x="30.5" y="135.5" id="svg_40" font-size="24" font-family="Helvetica" text-anchor="middle" xml:space="preserve" font-weight="bold" transform="matrix(0.577627 0 0 0.592027 343.762 59.9652)" style="cursor: move;">07</text>
+  <text fill="#000000" stroke="#000000" stroke-width="0" x="30.5" y="135.5" id="svg_43" font-size="24" font-family="Helvetica" text-anchor="middle" xml:space="preserve" font-weight="bold" transform="matrix(0.577627 0 0 0.592027 446.882 59.9652)">10</text>
+  <text fill="#000000" stroke="#000000" stroke-width="0" x="30.5" y="135.5" id="svg_53" font-size="24" font-family="Helvetica" text-anchor="middle" xml:space="preserve" font-weight="bold" transform="matrix(0.577627 0 0 0.592027 139.447 290.09)" style="cursor: move;">20</text>
+  <text fill="#000000" stroke="#000000" stroke-width="0" x="30.5" y="135.5" id="svg_52" font-size="24" font-family="Helvetica" text-anchor="middle" xml:space="preserve" font-weight="bold" transform="matrix(0.577627 0 0 0.592027 172.692 290.09)" style="cursor: move;">19</text>
+  <text fill="#000000" stroke="#000000" stroke-width="0" x="30.5" y="135.5" id="svg_51" font-size="24" font-family="Helvetica" text-anchor="middle" xml:space="preserve" font-weight="bold" transform="matrix(0.577627 0 0 0.592027 308.442 290.09)" style="cursor: move;">15</text>
+  <text fill="#000000" stroke="#000000" stroke-width="0" x="30.5" y="135.5" id="svg_50" font-size="24" font-family="Helvetica" text-anchor="middle" xml:space="preserve" font-weight="bold" transform="matrix(0.577627 0 0 0.592027 274.942 290.09)" style="cursor: move;">16</text>
+  <text fill="#000000" stroke="#000000" stroke-width="0" x="30.5" y="135.5" id="svg_49" font-size="24" font-family="Helvetica" text-anchor="middle" xml:space="preserve" font-weight="bold" transform="matrix(0.577627 0 0 0.592027 241.192 290.09)" style="cursor: move;">17</text>
+  <text fill="#000000" stroke="#000000" stroke-width="0" x="30.5" y="135.5" id="svg_48" font-size="24" font-family="Helvetica" text-anchor="middle" xml:space="preserve" font-weight="bold" transform="matrix(0.577627 0 0 0.592027 207.442 290.09)" style="cursor: move;">18</text>
+  <text fill="#000000" stroke="#000000" stroke-width="0" x="30.5" y="135.5" id="svg_47" font-size="24" font-family="Helvetica" text-anchor="middle" xml:space="preserve" font-weight="bold" transform="matrix(0.577627 0 0 0.592027 411.197 290.09)" style="cursor: move;">12</text>
+  <text fill="#000000" stroke="#000000" stroke-width="0" x="30.5" y="135.5" id="svg_46" font-size="24" font-family="Helvetica" text-anchor="middle" xml:space="preserve" font-weight="bold" transform="matrix(0.577627 0 0 0.592027 377.197 290.09)" style="cursor: move;">13</text>
+  <text fill="#000000" stroke="#000000" stroke-width="0" x="30.5" y="135.5" id="svg_45" font-size="24" font-family="Helvetica" text-anchor="middle" xml:space="preserve" font-weight="bold" transform="matrix(0.577627 0 0 0.592027 344.697 290.09)" style="cursor: move;">14</text>
+  <text fill="#000000" stroke="#000000" stroke-width="0" x="30.5" y="135.5" id="svg_44" font-size="24" font-family="Helvetica" text-anchor="middle" xml:space="preserve" font-weight="bold" transform="matrix(0.577627 0 0 0.592027 445.567 290.09)" style="cursor: move;">11</text>
+ </g>
+</svg>

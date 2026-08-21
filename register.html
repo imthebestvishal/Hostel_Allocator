@@ -773,6 +773,26 @@
                             <div class="error-message">Select year of study</div>
                         </div>
 
+                        <div class="form-group full-width">
+
+                            <label for="hobbies" class="required">
+                                Hobbies & Interests
+                            </label>
+
+                            <input
+                                type="text"
+                                id="hobbies"
+                                name="hobbies"
+                                placeholder="e.g. Cricket, Music, Gaming, Reading"
+                                required
+                            >
+
+                            <div class="error-message">
+                                Please enter at least one hobby
+                            </div>
+
+                        </div>
+
                         <div class="form-group">
                             <label for="marks12" class="required">12th Marks Percentage</label>
                             <input type="number" id="marks12" name="marks12" min="0" max="100" step="0.01" required>
@@ -1322,6 +1342,7 @@
                     Programme: document.getElementById('programme')?.value || '',
                     Branch: document.getElementById('branch')?.value || '',
                     Year: document.getElementById('year')?.value || '',
+                    Hobbies: document.getElementById('hobbies')?.value || '',
                     TwelfthMarks: parseFloat(document.getElementById('marks12')?.value || 0),
                     Category: document.querySelector('input[name="domicile"]:checked')?.value || '',
                     State: document.getElementById('state')?.value || '',
