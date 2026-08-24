@@ -51,25 +51,20 @@ Featuring a dynamic drone sequence hero section, a 4-step student registration w
 
 ### Marksheet screening setup
 
-New registrations require one 12th-marksheet upload on the final step. The original bytes are stored unchanged and checked again after retrieval with SHA-256. Applications are saved as `Screening Pending`; only records that reach `Verified` through trusted issuer evidence or audited manual review are eligible for allocation. Missing provenance never causes automatic approval.
+New registrations require one 12th-marksheet upload on the final step. The original bytes are stored unchanged and checked again after retrieval with SHA-256. Applications are saved as `Screening Pending`; only records approved through an audited administrator review become `Verified` and eligible for allocation. A clean AI-provenance check never causes automatic approval.
 
-1. Run `setupDatabase()` once to add any missing student provenance and audit columns.
+1. Run `ensureStudentDocumentColumns()` once to add any missing student AI-check and audit columns.
 2. Run `installMarksheetScreeningTrigger()` once to install the one-minute queue worker.
 3. For production cryptographic checks, configure `PROVENANCE_VERIFIER_URL` and optionally `PROVENANCE_VERIFIER_KEY` in Apps Script Properties.
 
-The production verifier must preserve the uploaded bytes and return metadata, C2PA, digital-signature and official SynthID result fields. When it is not configured, screening safely finishes as `Offline Verification Required`.
+The production verifier must preserve the uploaded bytes, extract document metadata, and cryptographically validate C2PA manifests. Only explicit Google/OpenAI generator metadata and validated Google/OpenAI C2PA identities are evaluated. When the C2PA verifier is unavailable, screening finishes as `AI Check Inconclusive — Manual Approval Required`.
 
 For local cryptographic and PDF-page checks, create an untracked `.env.local` file if the tools are installed:
 
 ```text
 C2PATOOL_PATH=C:\path\to\c2patool.exe
-PDF_RENDERER_PATH=C:\path\to\pdftoppm.exe
-TRUSTED_ISSUER_PATTERNS=cbse,cisce,education board,digilocker
-# Configure only an official machine-readable detector:
-SYNTHID_OFFICIAL_VERIFIER_URL=https://official-detector.example/api/verify
-SYNTHID_OFFICIAL_VERIFIER_KEY=server-side-secret
 ```
 
-Then run `npm start`. Metadata extraction always runs locally. C2PA, PDF rendering and SynthID explicitly report unsupported/not checked when their maintained verifier is unavailable; the admin can record an audited result from an official verification interface.
+Then run `npm start`. Metadata extraction always runs locally. C2PA reports unsupported when the maintained cryptographic verifier is unavailable. A passed check means only that no supported Google/OpenAI AI-provenance signal was detected; an administrator must still approve the marksheet.
 
 Run `npm test` for deterministic provenance, checksum, manual-review and allocation tests.

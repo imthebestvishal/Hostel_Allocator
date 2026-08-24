@@ -519,33 +519,69 @@ function localNamesAreConsistent(submittedName, extractedName) {
   return shared >= Math.max(1, Math.min(a.length, b.length) - 1);
 }
 
+function localDetectSupportedAiProviders(value) {
+  let text = '';
+  try { text = typeof value === 'string' ? value : JSON.stringify(value || {}); } catch (error) { text = String(value || ''); }
+  const providers = [];
+  if (/\b(?:google[\s_-]*ai|gemini|imagen|synthid)\b/i.test(text)) providers.push('Google');
+  if (/\b(?:openai|chatgpt|dall[\s.·_-]*e)\b/i.test(text)) providers.push('OpenAI');
+  return providers;
+}
+
+function localAiExplanation(code, provider) {
+  const labels = {
+    FILE_INTEGRITY_CONFIRMED: 'The original upload remained unchanged during storage and retrieval.',
+    FILE_CHANGED_DURING_TRANSFER: 'The retrieved file checksum does not match the stored upload checksum.',
+    NO_SUPPORTED_GENERATOR_METADATA: 'No recognized Google or OpenAI generator metadata was found.',
+    GOOGLE_OPENAI_METADATA_DETECTED: `${provider || 'Google/OpenAI'} generator metadata was found in the original file.`,
+    C2PA_NOT_PRESENT: 'No C2PA manifest was present in the uploaded file.',
+    NO_SUPPORTED_C2PA_AI_CLAIM: 'No validated Google or OpenAI C2PA AI-generation claim was found.',
+    GOOGLE_OPENAI_C2PA_AI_DETECTED: `Validated ${provider || 'Google/OpenAI'} C2PA provenance indicates AI-generated content.`,
+    GOOGLE_OPENAI_C2PA_INVALID: `${provider || 'Google/OpenAI'} C2PA provenance is invalid, untrusted, or appears altered.`,
+    C2PA_VERIFIER_UNAVAILABLE: 'Cryptographic C2PA verification is unavailable, so the AI check is inconclusive.',
+    METADATA_UNREADABLE: 'The document metadata could not be read reliably.',
+    UNSUPPORTED_C2PA_PROVIDER: 'The C2PA provider is outside the supported Google/OpenAI check.'
+  };
+  return labels[code] || String(code || '').replace(/_/g, ' ').toLowerCase();
+}
+
 function localDecideMarksheetVerification(screening) {
   const result = screening || {};
   const metadata = result.metadata || {};
   const c2pa = result.c2pa || {};
-  const signature = result.digitalSignature || {};
-  const synth = result.synthId || {};
   const reasons = [];
-  if (result.verifierConfigured === false) reasons.push('PROVENANCE_VERIFIER_UNAVAILABLE');
+  const inconclusive = [];
+  const explanations = [result.checksumMatch === false ? 'FILE_CHANGED_DURING_TRANSFER' : 'FILE_INTEGRITY_CONFIRMED'];
+  const metadataProviders = Array.isArray(metadata.aiGeneratorProviders) ? metadata.aiGeneratorProviders.map(provider => localDetectSupportedAiProviders(String(provider))[0] || String(provider)).filter(provider => ['Google', 'OpenAI'].includes(provider)) : localDetectSupportedAiProviders(metadata.summary || metadata);
+  const c2paProvider = ['Google', 'OpenAI'].includes(c2pa.provider) ? c2pa.provider : (localDetectSupportedAiProviders([c2pa.provider, c2pa.issuer, c2pa.claimGenerator])[0] || '');
   if (result.checksumMatch === false) reasons.push('FILE_CHANGED_DURING_TRANSFER');
-  if (c2pa.status === 'Invalid') reasons.push('C2PA_INVALID');
-  if (c2pa.status === 'Untrusted') reasons.push('C2PA_UNTRUSTED');
-  if (signature.status === 'Invalid') reasons.push('DIGITAL_SIGNATURE_INVALID');
-  if (signature.status === 'Untrusted') reasons.push('DIGITAL_SIGNATURE_UNTRUSTED');
-  if (metadata.timestampContradiction === true) reasons.push('TIMESTAMP_INCONSISTENCY');
-  if (c2pa.status === 'Valid' && c2pa.aiGenerated === true) reasons.push('AI_PROVENANCE_DETECTED');
-  if (synth.status === 'Detected' && synth.officialDetector === true) reasons.push('AI_PROVENANCE_DETECTED');
-  if (synth.status === 'Detected' && synth.officialDetector !== true) reasons.push('UNTRUSTED_WATERMARK_RESULT');
+  if (metadata.readable === false) inconclusive.push('METADATA_UNREADABLE');
+  if (metadataProviders.length) reasons.push('GOOGLE_OPENAI_METADATA_DETECTED'); else explanations.push('NO_SUPPORTED_GENERATOR_METADATA');
+  if (result.verifierConfigured === false || c2pa.status === 'Unsupported') inconclusive.push('C2PA_VERIFIER_UNAVAILABLE');
+  if (c2pa.status === 'Absent') explanations.push('C2PA_NOT_PRESENT', 'NO_SUPPORTED_C2PA_AI_CLAIM');
+  if (c2pa.status === 'Valid' && !c2paProvider) inconclusive.push('UNSUPPORTED_C2PA_PROVIDER');
+  if (['Invalid', 'Untrusted'].includes(c2pa.status) && !c2paProvider) inconclusive.push('UNSUPPORTED_C2PA_PROVIDER');
+  if (['Invalid', 'Untrusted'].includes(c2pa.status) && c2paProvider) reasons.push('GOOGLE_OPENAI_C2PA_INVALID');
+  if (c2pa.status === 'Valid' && c2paProvider && c2pa.aiGenerated === true) reasons.push('GOOGLE_OPENAI_C2PA_AI_DETECTED');
+  if (c2pa.status === 'Valid' && c2paProvider && c2pa.aiGenerated !== true) explanations.push('NO_SUPPORTED_C2PA_AI_CLAIM');
   const reasonCodes = reasons.filter((reason, index) => reasons.indexOf(reason) === index);
-  const trustedIssuer = (c2pa.status === 'Valid' && c2pa.trustedIssuer === true && c2pa.aiGenerated !== true) ||
-    (signature.status === 'Valid' && signature.trustedIssuer === true);
-  const status = reasonCodes.length ? 'Offline Verification Required' : trustedIssuer ? 'Verified' : 'Provenance Check Passed — Original Required';
+  const inconclusiveCodes = inconclusive.filter((reason, index) => inconclusive.indexOf(reason) === index);
+  const explanationCodes = explanations.concat(reasonCodes, inconclusiveCodes).filter((code, index, values) => values.indexOf(code) === index);
+  const provider = metadataProviders[0] || c2paProvider || '';
+  const status = reasonCodes.length ? 'Offline Verification Required' : inconclusiveCodes.length ? 'AI Check Inconclusive — Manual Approval Required' : 'AI Check Passed — Manual Approval Required';
   return {
     status,
-    remarks: status === 'Verified' ? 'Trusted issuer provenance was validated.' : status === 'Offline Verification Required'
-      ? 'Automated provenance checks require review of the original document.'
-      : 'No conclusive provenance risk was detected. Please present the original document for final verification.',
+    aiProvenanceStatus: reasonCodes.length ? 'Detected' : inconclusiveCodes.length ? 'Inconclusive' : 'Passed',
+    provider,
+    remarks: status === 'Offline Verification Required'
+      ? 'Supported Google/OpenAI AI-provenance signals require review of the original document. The application has not been rejected.'
+      : status === 'AI Check Inconclusive — Manual Approval Required'
+        ? 'The Google/OpenAI AI-provenance check could not complete conclusively. Administrator approval is required.'
+        : 'No supported Google/OpenAI AI-provenance signal was detected. This does not confirm that a board issued the marksheet; administrator approval is required.',
     reasonCodes,
+    inconclusiveCodes,
+    explanationCodes,
+    explanationSummary: explanationCodes.map(code => localAiExplanation(code, provider)),
     provenance: result
   };
 }
@@ -598,17 +634,13 @@ async function runLocalMarksheetScreening(enrollmentNo, suppliedResult) {
     const testName = String(student.LocalMarksheetOriginalName || '').toLowerCase();
     if (testName.includes('clean-test-marksheet')) {
       screening = {
-        verifierConfigured: true, checksumMatch: true, metadata: { summary: {}, editingSoftware: [], warnings: [] },
-        c2pa: { status: 'Valid', issuer: 'TEST EDUCATION BOARD', trustedIssuer: true, aiGenerated: false },
-        digitalSignature: { status: 'Valid', issuer: 'TEST EDUCATION BOARD', trustedIssuer: true },
-        synthId: { status: 'Not Detected', provider: 'test', detectorVersion: '1', officialDetector: true }
+        verifierConfigured: true, checksumMatch: true, metadata: { readable: true, summary: {}, aiGeneratorProviders: [], warnings: [] },
+        c2pa: { status: 'Absent', provider: '', issuer: '', aiGenerated: false }
       };
     } else if (testName.includes('suspicious-test-marksheet')) {
       screening = {
-        verifierConfigured: true, checksumMatch: true, metadata: { summary: { Software: 'Test Generator' }, editingSoftware: ['Test Generator'], warnings: [] },
-        c2pa: { status: 'Valid', issuer: 'TEST AI GENERATOR', trustedIssuer: true, aiGenerated: true },
-        digitalSignature: { status: 'Absent', trustedIssuer: false },
-        synthId: { status: 'Detected', provider: 'test', detectorVersion: '1', officialDetector: true }
+        verifierConfigured: true, checksumMatch: true, metadata: { readable: true, summary: { Software: 'OpenAI DALL-E' }, aiGeneratorProviders: ['OpenAI'], warnings: [] },
+        c2pa: { status: 'Valid', provider: 'OpenAI', issuer: 'OpenAI', aiGenerated: true }
       };
     }
   }
@@ -639,18 +671,20 @@ async function runLocalMarksheetScreening(enrollmentNo, suppliedResult) {
   student.MarksheetRemarks = decision.remarks;
   student.DocumentRemarks = decision.remarks;
   student.MarksheetVerificationCheckedAt = new Date().toISOString();
-  student.MarksheetVerificationProvider = 'Provenance';
-  student.MarksheetVerificationModel = 'metadata-c2pa-synthid-v1';
+  student.MarksheetVerificationProvider = 'Google/OpenAI metadata and C2PA';
+  student.MarksheetVerificationModel = 'google-openai-metadata-c2pa-v1';
   student.MarksheetVerificationReasons = JSON.stringify(decision.reasonCodes);
+  student.MarksheetVerificationExplanationCodes = JSON.stringify(decision.explanationCodes);
+  student.MarksheetVerificationSummary = JSON.stringify(decision.explanationSummary);
+  student.MarksheetAiProvenanceStatus = decision.aiProvenanceStatus;
+  student.MarksheetAiProvider = decision.provider;
   student.MarksheetRetrievedChecksum = screening.retrievedChecksum || student.MarksheetChecksum || '';
   student.MarksheetMetadataSummary = JSON.stringify(screening.metadata || {});
+  student.MarksheetMetadataFindings = JSON.stringify(screening.metadata?.aiGeneratorProviders || []);
   student.MarksheetC2paStatus = screening.c2pa?.status || 'Unsupported';
   student.MarksheetC2paIssuer = screening.c2pa?.issuer || '';
+  student.MarksheetC2paSigner = screening.c2pa?.signer || screening.c2pa?.issuer || '';
   student.MarksheetC2paSigningTime = screening.c2pa?.signingTime || '';
-  student.MarksheetDigitalSignatureStatus = screening.digitalSignature?.status || 'Unsupported';
-  student.MarksheetSynthIdStatus = screening.synthId?.status || 'Not Checked';
-  student.MarksheetSynthIdProvider = screening.synthId?.provider || '';
-  student.MarksheetSynthIdDetectorVersion = screening.synthId?.detectorVersion || '';
   student.MarksheetScreeningAttempts = Number(student.MarksheetScreeningAttempts || 0) + 1;
   if (decision.status === 'Offline Verification Required' && !student.OfflineVerificationEmailSentAt) {
     student.OfflineVerificationEmailSentAt = new Date().toISOString();
@@ -674,21 +708,14 @@ function recordLocalScreeningFailure(enrollmentNo, error) {
   student.MarksheetScreeningAttempts = attempts;
   student.MarksheetVerificationLastError = String(error && error.message || error).slice(0, 500);
   student.MarksheetRemarks = finalAttempt
-    ? 'Automated screening could not complete. Please bring the original 12th marksheet for offline verification.'
+    ? 'The Google/OpenAI AI-provenance check could not complete. Administrator approval is required.'
     : `Automated screening attempt ${attempts} failed and will be retried.`;
   student.DocumentRemarks = student.MarksheetRemarks;
   if (finalAttempt) {
-    student.MarksheetStatus = 'Offline Verification Required';
-    student.DocumentStatus = 'Offline Verification Required';
+    student.MarksheetStatus = 'AI Check Inconclusive — Manual Approval Required';
+    student.DocumentStatus = 'AI Check Inconclusive — Manual Approval Required';
+    student.MarksheetAiProvenanceStatus = 'Inconclusive';
     student.MarksheetVerificationCheckedAt = new Date().toISOString();
-    if (!student.OfflineVerificationEmailSentAt) {
-      student.OfflineVerificationEmailSentAt = new Date().toISOString();
-      try {
-        const log = JSON.parse(localStorage.getItem('ggsipu_hostel_email_log') || '[]');
-        log.push({ type: 'offline-verification', applicationId: student.ApplicationID, enrollmentNo: student.EnrollmentNo, to: student.Email, sentAt: student.OfflineVerificationEmailSentAt });
-        localStorage.setItem('ggsipu_hostel_email_log', JSON.stringify(log));
-      } catch (e) {}
-    }
   }
   saveLocalStudents(students);
   LOCAL_MOCK_STORE.students = students;
@@ -794,7 +821,10 @@ function handleLocalFallback(action, data, params) {
       const isAllocated = String(s.Status || '').toLowerCase() === 'allocated';
       const alloc = LOCAL_MOCK_STORE.allocations.find(a => String(a.EnrollmentNo).trim().toLowerCase() === enrollInput);
       const applicationDetails = { ...s };
-      ['MarksheetChecksum', 'MarksheetBrowserChecksum', 'MarksheetRetrievedChecksum', 'MarksheetMetadataSummary', 'MarksheetC2paIssuer', 'MarksheetC2paSigningTime', 'MarksheetSynthIdProvider', 'MarksheetSynthIdDetectorVersion', 'MarksheetVerificationReasons', 'MarksheetVerificationLastError', 'DocumentAuditLog'].forEach(key => { delete applicationDetails[key]; });
+      ['MarksheetChecksum', 'MarksheetBrowserChecksum', 'MarksheetRetrievedChecksum', 'MarksheetMetadataSummary', 'MarksheetMetadataFindings', 'MarksheetC2paIssuer', 'MarksheetC2paSigner', 'MarksheetC2paSigningTime', 'MarksheetSynthIdProvider', 'MarksheetSynthIdDetectorVersion', 'MarksheetVerificationReasons', 'MarksheetVerificationExplanationCodes', 'MarksheetVerificationSummary', 'MarksheetVerificationLastError', 'DocumentAuditLog'].forEach(key => { delete applicationDetails[key]; });
+      let verificationSummary = [];
+      try { verificationSummary = JSON.parse(String(s.MarksheetVerificationSummary || '[]')); } catch (error) { verificationSummary = []; }
+      if (!Array.isArray(verificationSummary)) verificationSummary = [];
       return {
         success: true,
         name: s.Name || s.name || 'Student',
@@ -811,10 +841,12 @@ function handleLocalFallback(action, data, params) {
           status: s.DocumentStatus || 'Screening Pending',
           checkedAt: s.MarksheetVerificationCheckedAt || '',
           remarks: s.DocumentRemarks || '',
+          aiCheckStatus: s.MarksheetAiProvenanceStatus || (s.DocumentStatus === 'Screening Pending' ? 'Pending' : ''),
+          explanation: verificationSummary.map(String).slice(0, 8),
           instructions: String(s.DocumentStatus || '').toLowerCase() === 'offline verification required'
             ? 'Please bring the original 12th marksheet to the hostel office for offline verification.'
-            : String(s.DocumentStatus || '').toLowerCase().includes('original required')
-              ? 'Automated provenance checks completed. Please present the original 12th marksheet for final verification.'
+            : String(s.DocumentStatus || '').toLowerCase().includes('manual approval required')
+              ? 'The Google/OpenAI AI-provenance check is complete. An administrator must review the marksheet before allocation.'
               : ''
         }
       };
@@ -873,10 +905,10 @@ function handleLocalFallback(action, data, params) {
         MarksheetRemarks: '',
         PwdCertificateRemarks: '',
         DocumentStatus: 'Screening Pending',
-        DocumentRemarks: 'Automated provenance screening is pending.',
+        DocumentRemarks: 'Google/OpenAI AI-provenance screening is pending.',
         DiscrepancyEmailSentAt: '',
         OfflineVerificationEmailSentAt: '',
-        DocumentPolicyVersion: 'marksheet-provenance-v1',
+        DocumentPolicyVersion: 'metadata-c2pa-google-openai-v1',
         MarksheetScreeningAttempts: 0
       };
 
@@ -890,8 +922,16 @@ function handleLocalFallback(action, data, params) {
       const targetEnroll = String(data.EnrollmentNo || '').trim().toLowerCase();
       const s = students.find(st => String(st.EnrollmentNo || st.rollNo || '').trim().toLowerCase() === targetEnroll);
       if (!s) return { success: false, error: 'Student record not found.' };
-      const evidenceSource = String(data.EvidenceSource || data.evidenceSource || '').trim();
-      if (data.DocumentStatus === 'Verified' && !['Original Document', 'Trusted Issuer Signature', 'DigiLocker', 'Official Board Record'].includes(evidenceSource)) {
+      const policyVersion = String(s.DocumentPolicyVersion || '');
+      const manualDecision = String(data.ManualDecision || data.manualDecision || '').trim();
+      let requestedStatus = data.DocumentStatus || s.DocumentStatus;
+      let evidenceSource = String(data.EvidenceSource || data.evidenceSource || '').trim();
+      if (policyVersion === 'metadata-c2pa-google-openai-v1' && manualDecision) {
+        if (!['Approve after document review', 'Require original verification'].includes(manualDecision)) return { success: false, error: 'Select a valid manual verification decision.' };
+        requestedStatus = manualDecision === 'Approve after document review' ? 'Verified' : 'Offline Verification Required';
+        evidenceSource = 'Administrator Document Review';
+      }
+      if (requestedStatus === 'Verified' && !['Administrator Document Review', 'Original Document', 'Trusted Issuer Signature', 'DigiLocker', 'Official Board Record'].includes(evidenceSource)) {
         return { success: false, error: 'Verified status requires an approved evidence source.' };
       }
       const previousStatus = s.DocumentStatus || '';
@@ -905,14 +945,8 @@ function handleLocalFallback(action, data, params) {
       if (rems.photo !== undefined) s.PhotoRemarks = rems.photo;
       if (rems.marksheet !== undefined) s.MarksheetRemarks = rems.marksheet;
       if (rems.pwdCertificate !== undefined) s.PwdCertificateRemarks = rems.pwdCertificate;
-      s.DocumentStatus = data.DocumentStatus || s.DocumentStatus;
-      if (data.MarksheetSynthIdStatus) s.MarksheetSynthIdStatus = data.MarksheetSynthIdStatus;
-      if (data.MarksheetSynthIdProvider !== undefined) s.MarksheetSynthIdProvider = data.MarksheetSynthIdProvider;
-      if (data.MarksheetSynthIdDetectorVersion !== undefined) s.MarksheetSynthIdDetectorVersion = data.MarksheetSynthIdDetectorVersion;
-      if (data.MarksheetSynthIdStatus === 'Detected' && ['Google SynthID', 'OpenAI Verify'].includes(data.MarksheetSynthIdProvider)) {
-        s.DocumentStatus = 'Offline Verification Required';
-        s.MarksheetVerificationReasons = JSON.stringify(['AI_PROVENANCE_DETECTED']);
-      }
+      s.DocumentStatus = requestedStatus;
+      s.MarksheetStatus = requestedStatus;
       s.DocumentRemarks = data.DocumentRemarks !== undefined ? data.DocumentRemarks : s.DocumentRemarks;
       s.DocumentPreviousStatus = previousStatus;
       s.DocumentManualReviewer = data.Reviewer || data.reviewer || 'Administrator';
@@ -921,7 +955,7 @@ function handleLocalFallback(action, data, params) {
       let audit = [];
       try { audit = JSON.parse(s.DocumentAuditLog || '[]'); } catch (e) { audit = []; }
       if (!Array.isArray(audit)) audit = [];
-      audit.push({ at: s.DocumentManualReviewedAt, reviewer: s.DocumentManualReviewer, evidenceSource, previousStatus, newStatus: s.DocumentStatus, remarks: s.DocumentRemarks || '' });
+      audit.push({ at: s.DocumentManualReviewedAt, reviewer: s.DocumentManualReviewer, evidenceSource, manualDecision, previousStatus, newStatus: s.DocumentStatus, remarks: s.DocumentRemarks || '' });
       s.DocumentAuditLog = JSON.stringify(audit.slice(-50));
       if (s.DocumentStatus === 'Offline Verification Required' && !s.OfflineVerificationEmailSentAt) {
         s.OfflineVerificationEmailSentAt = new Date().toISOString();

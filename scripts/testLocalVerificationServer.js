@@ -19,32 +19,33 @@ function pngChunk(type, data) {
   return Buffer.concat([length, Buffer.from(type), payload, Buffer.alloc(4)]);
 }
 
-function metadataPng() {
-  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), pngChunk('tEXt', Buffer.from('Software\0Adobe Photoshop')), pngChunk('IEND', Buffer.alloc(0))]);
+function metadataPng(software) {
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), pngChunk('tEXt', Buffer.from(`Software\0${software}`)), pngChunk('IEND', Buffer.alloc(0))]);
 }
 
 async function main() {
-  const png = metadataPng();
-  const metadata = inspectMetadata({ buffer: png, mimeType: 'image/png', name: 'metadata.png' });
-  assert.ok(metadata.editingSoftware.some(value => /photoshop/i.test(value)));
+  const openAiPng = metadataPng('OpenAI DALL-E');
+  const metadata = inspectMetadata({ buffer: openAiPng, mimeType: 'image/png', name: 'metadata.png' });
+  assert.deepEqual(metadata.aiGeneratorProviders, ['OpenAI']);
 
-  const trusted = await screenProvenance({ buffer: png, mimeType: 'image/png', name: 'trusted.png' }, crypto.createHash('sha256').update(png).digest('hex'), {
-    c2pa: () => ({ status: 'Valid', issuer: 'TEST BOARD', trustedIssuer: true, aiGenerated: false }),
-    synthId: async () => ({ status: 'Not Detected', provider: 'Official test detector', detectorVersion: '1', officialDetector: true })
+  const cleanPng = metadataPng('Scanner');
+  const clean = await screenProvenance({ buffer: cleanPng, mimeType: 'image/png', name: 'clean.png' }, crypto.createHash('sha256').update(cleanPng).digest('hex'), {
+    c2pa: () => ({ status: 'Absent', provider: '', issuer: '', aiGenerated: false })
   });
-  assert.equal(trusted.checksumMatch, true);
-  assert.equal(trusted.c2pa.status, 'Valid');
+  assert.equal(clean.checksumMatch, true);
+  assert.equal(clean.verifierConfigured, true);
+  assert.deepEqual(clean.metadata.aiGeneratorProviders, []);
 
-  const ai = await screenProvenance({ buffer: png, mimeType: 'image/png', name: 'ai.png' }, '', {
-    c2pa: () => ({ status: 'Absent', trustedIssuer: false, aiGenerated: false }),
-    synthId: async () => ({ status: 'Detected', provider: 'Google SynthID', detectorVersion: '1', officialDetector: true })
+  const aiC2pa = await screenProvenance({ buffer: cleanPng, mimeType: 'image/png', name: 'ai.png' }, '', {
+    c2pa: () => ({ status: 'Valid', provider: 'Google', issuer: 'Google AI', claimGenerator: 'Imagen', aiGenerated: true })
   });
-  assert.equal(ai.synthId.status, 'Detected');
+  assert.equal(aiC2pa.c2pa.status, 'Valid');
+  assert.equal(aiC2pa.c2pa.provider, 'Google');
 
   const port = 3217;
   const child = spawn(process.execPath, [path.join(__dirname, 'devServer.js')], {
     cwd: path.join(__dirname, '..'),
-    env: { ...process.env, PORT: String(port), C2PATOOL_PATH: '', PDF_RENDERER_PATH: '', SYNTHID_OFFICIAL_VERIFIER_URL: '', SKIP_LOCAL_ENV_FILE: '1' },
+    env: { ...process.env, PORT: String(port), C2PATOOL_PATH: '', SKIP_LOCAL_ENV_FILE: '1' },
     stdio: ['ignore', 'pipe', 'pipe']
   });
   let stderr = '';
@@ -60,10 +61,13 @@ async function main() {
     const result = await response.json();
     assert.equal(response.status, 200);
     assert.equal(result.success, true);
+    assert.equal(result.provider, 'google-openai-metadata-c2pa-v1');
     assert.equal(result.screening.checksumMatch, true);
     assert.equal(result.screening.retrievedChecksum, expectedChecksum);
     assert.equal(result.screening.c2pa.status, 'Absent');
-    assert.equal(result.screening.synthId.status, 'Not Checked');
+    assert.equal(result.screening.verifierConfigured, false);
+    assert.equal('synthId' in result.screening, false);
+    assert.equal('digitalSignature' in result.screening, false);
 
     const mismatchResponse = await fetch(`http://127.0.0.1:${port}/api/verify-marksheet`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -71,7 +75,7 @@ async function main() {
     });
     const mismatch = await mismatchResponse.json();
     assert.equal(mismatch.screening.checksumMatch, false);
-    console.log('Local provenance verification server tests passed.');
+    console.log('Local Google/OpenAI metadata and C2PA server tests passed.');
   } finally {
     child.kill('SIGTERM');
     await new Promise(resolve => child.once('exit', resolve));

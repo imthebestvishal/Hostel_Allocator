@@ -62,13 +62,19 @@ const STUDENT_DOCUMENT_COLUMNS = [
   'MarksheetVerificationModel',
   'MarksheetVerificationConfidence',
   'MarksheetVerificationReasons',
+  'MarksheetVerificationExplanationCodes',
+  'MarksheetVerificationSummary',
   'MarksheetExtractedData',
   'MarksheetVerificationLastError',
   'OfflineVerificationEmailSentAt',
   'MarksheetRetrievedChecksum',
   'MarksheetMetadataSummary',
+  'MarksheetMetadataFindings',
+  'MarksheetAiProvenanceStatus',
+  'MarksheetAiProvider',
   'MarksheetC2paStatus',
   'MarksheetC2paIssuer',
+  'MarksheetC2paSigner',
   'MarksheetC2paSigningTime',
   'MarksheetDigitalSignatureStatus',
   'MarksheetSynthIdStatus',
@@ -265,7 +271,7 @@ function submitApplication(data) {
     MarksheetRemarks: '',
     PwdCertificateRemarks: '',
     DocumentStatus: 'Screening Pending',
-    DocumentRemarks: 'Automated provenance screening is pending.',
+    DocumentRemarks: 'Google/OpenAI AI-provenance screening is pending.',
     DiscrepancyEmailSentAt: '',
     DocumentPolicyVersion: MARKSHEET_POLICY_VERSION,
     MarksheetFileId: marksheet.fileId,
@@ -318,7 +324,11 @@ function getStudentStatus(enrollmentNo, dob) {
   
   const studentName = student.Name || student.name || 'Student';
   const applicationDetails = Object.assign({}, student);
-  ['MarksheetChecksum', 'MarksheetBrowserChecksum', 'MarksheetRetrievedChecksum', 'MarksheetMetadataSummary', 'MarksheetC2paIssuer', 'MarksheetC2paSigningTime', 'MarksheetSynthIdProvider', 'MarksheetSynthIdDetectorVersion', 'MarksheetVerificationReasons', 'MarksheetVerificationLastError', 'DocumentAuditLog'].forEach(key => { delete applicationDetails[key]; });
+  ['MarksheetChecksum', 'MarksheetBrowserChecksum', 'MarksheetRetrievedChecksum', 'MarksheetMetadataSummary', 'MarksheetMetadataFindings', 'MarksheetC2paIssuer', 'MarksheetC2paSigner', 'MarksheetC2paSigningTime', 'MarksheetSynthIdProvider', 'MarksheetSynthIdDetectorVersion', 'MarksheetVerificationReasons', 'MarksheetVerificationExplanationCodes', 'MarksheetVerificationSummary', 'MarksheetVerificationLastError', 'DocumentAuditLog'].forEach(key => { delete applicationDetails[key]; });
+
+  let verificationSummary = [];
+  try { verificationSummary = JSON.parse(String(student.MarksheetVerificationSummary || '[]')); } catch (error) { verificationSummary = []; }
+  if (!Array.isArray(verificationSummary)) verificationSummary = [];
   
   let result = { 
     success: true,
@@ -332,10 +342,12 @@ function getStudentStatus(enrollmentNo, dob) {
       status: student.DocumentStatus || 'Screening Pending',
       checkedAt: student.MarksheetVerificationCheckedAt || '',
       remarks: student.DocumentRemarks || '',
+      aiCheckStatus: student.MarksheetAiProvenanceStatus || (student.DocumentStatus === 'Screening Pending' ? 'Pending' : ''),
+      explanation: verificationSummary.map(String).slice(0, 8),
       instructions: String(student.DocumentStatus || '').toLowerCase() === 'offline verification required'
         ? 'Please bring the original 12th marksheet to the hostel office for offline verification.'
-        : String(student.DocumentStatus || '').toLowerCase().includes('original required')
-          ? 'Automated provenance checks completed. Please present the original 12th marksheet for final verification.'
+        : String(student.DocumentStatus || '').toLowerCase().includes('manual approval required')
+          ? 'The Google/OpenAI AI-provenance check is complete. An administrator must review the marksheet before allocation.'
           : ''
     }
   };
@@ -589,13 +601,17 @@ function updateDocumentVerification(data) {
     const rowAppId = String(rows[i][0] || '').trim();
     if ((targetEnroll && rowEnroll === targetEnroll) || (targetAppId && rowAppId === targetAppId)) {
       const previousStatus = columnMap.DocumentStatus ? String(rows[i][columnMap.DocumentStatus - 1] || '') : '';
+      const policyVersion = columnMap.DocumentPolicyVersion ? String(rows[i][columnMap.DocumentPolicyVersion - 1] || '') : '';
+      const manualDecision = String(data.ManualDecision || data.manualDecision || '').trim();
       let requestedStatus = data.DocumentStatus || data.documentStatus;
       const reviewer = String(data.Reviewer || data.reviewer || data.reviewedBy || 'Administrator').trim();
-      const evidenceSource = String(data.EvidenceSource || data.evidenceSource || '').trim();
-      const manualSynthStatus = String(data.MarksheetSynthIdStatus || '').trim();
-      const manualSynthProvider = String(data.MarksheetSynthIdProvider || '').trim();
-      if (manualSynthStatus === 'Detected' && ['Google SynthID', 'OpenAI Verify'].includes(manualSynthProvider)) requestedStatus = 'Offline Verification Required';
-      if (requestedStatus === 'Verified' && !['Original Document', 'Trusted Issuer Signature', 'DigiLocker', 'Official Board Record'].includes(evidenceSource)) {
+      let evidenceSource = String(data.EvidenceSource || data.evidenceSource || '').trim();
+      if (policyVersion === MARKSHEET_POLICY_VERSION && manualDecision) {
+        if (!['Approve after document review', 'Require original verification'].includes(manualDecision)) return { success: false, error: 'Select a valid manual verification decision.' };
+        requestedStatus = manualDecision === 'Approve after document review' ? 'Verified' : 'Offline Verification Required';
+        evidenceSource = 'Administrator Document Review';
+      }
+      if (requestedStatus === 'Verified' && !['Administrator Document Review', 'Original Document', 'Trusted Issuer Signature', 'DigiLocker', 'Official Board Record'].includes(evidenceSource)) {
         return { success: false, error: 'Verified status requires an approved evidence source.' };
       }
       const documents = data.documents || {};
@@ -603,7 +619,7 @@ function updateDocumentVerification(data) {
       const statusMap = {
         AadhaarStatus: documents.aadhaar || data.AadhaarStatus,
         PhotoStatus: documents.photo || data.PhotoStatus,
-        MarksheetStatus: documents.marksheet || data.MarksheetStatus,
+        MarksheetStatus: requestedStatus || documents.marksheet || data.MarksheetStatus,
         PwdCertificateStatus: documents.pwdCertificate || data.PwdCertificateStatus,
         AadhaarRemarks: remarks.aadhaar || data.AadhaarRemarks || '',
         PhotoRemarks: remarks.photo || data.PhotoRemarks || '',
@@ -611,22 +627,16 @@ function updateDocumentVerification(data) {
         PwdCertificateRemarks: remarks.pwdCertificate || data.PwdCertificateRemarks || '',
         DocumentStatus: requestedStatus,
         DocumentRemarks: data.DocumentRemarks || data.remarks || '',
-        MarksheetSynthIdStatus: manualSynthStatus || undefined,
-        MarksheetSynthIdProvider: manualSynthProvider || undefined,
-        MarksheetSynthIdDetectorVersion: data.MarksheetSynthIdDetectorVersion || undefined,
         DocumentManualReviewer: reviewer,
         DocumentManualReviewedAt: new Date(),
         DocumentManualEvidenceSource: evidenceSource,
         DocumentPreviousStatus: previousStatus
       };
-      if (manualSynthStatus === 'Detected' && ['Google SynthID', 'OpenAI Verify'].includes(manualSynthProvider)) {
-        statusMap.MarksheetVerificationReasons = JSON.stringify(['AI_PROVENANCE_DETECTED']);
-      }
-
       const auditEntry = {
         at: new Date().toISOString(),
         reviewer: reviewer,
         evidenceSource: evidenceSource,
+        manualDecision: manualDecision || '',
         previousStatus: previousStatus,
         newStatus: requestedStatus || previousStatus,
         remarks: data.DocumentRemarks || data.remarks || ''

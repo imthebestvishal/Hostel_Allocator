@@ -876,7 +876,7 @@
             <h2>Registration Successful!</h2>
             <p>Your application for hostel accommodation has been submitted successfully.</p>
             <div class="app-id-box" id="appIdDisplay">APP-XXXXXX</div>
-            <p id="screeningStatusMessage" style="color: var(--c-muted); font-size: 0.875rem; margin-bottom: 1.5rem;">Your marksheet is queued for automated screening. Save this Application ID and check the student portal for the result.</p>
+            <p id="screeningStatusMessage" style="color: var(--c-muted); font-size: 0.875rem; margin-bottom: 1.5rem;">Your marksheet is queued for Google/OpenAI metadata and C2PA screening. Save this Application ID and check the student portal for the result.</p>
             <a href="index.html" class="btn btn-primary" style="display: block; text-decoration: none;">Return to Home</a>
         </div>
     </div>
@@ -1303,7 +1303,7 @@
                     if (input?.files?.length) setUploadState(id, 'uploaded', `${input.files[0].name} uploaded`, { progress: 100 });
                 });
                 document.getElementById('appIdDisplay').innerText = res.applicationId || 'Submitted';
-                document.getElementById('screeningStatusMessage').textContent = 'Your marksheet is queued for provenance screening. Save this Application ID and check the student portal for the result.';
+                document.getElementById('screeningStatusMessage').textContent = 'Your marksheet is queued for Google/OpenAI metadata and C2PA screening. Save this Application ID and check the student portal for the result.';
                 document.getElementById('successModal').classList.add('active');
             } catch(e) {
                 console.error(e);

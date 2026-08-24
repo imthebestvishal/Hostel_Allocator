@@ -1309,19 +1309,27 @@
             const verificationDescription = document.getElementById('timeDesc2');
             const verificationStatus = String(documentVerification.status || 'Screening Pending');
             if (verificationDescription) {
+                verificationDescription.style.color = '';
+                const safeExplanation = Array.isArray(documentVerification.explanation) && documentVerification.explanation.length
+                    ? ` ${documentVerification.explanation.join(' ')}`
+                    : '';
                 if (verificationStatus === 'Verified') {
-                    verificationDescription.textContent = 'Document verification is complete. The application is eligible for allocation.';
+                    verificationDescription.textContent = 'An administrator approved the marksheet after document review. The application is eligible for allocation.';
                     if (verificationItem) verificationItem.className = 'timeline-item completed';
                 } else if (verificationStatus === 'Offline Verification Required') {
-                    verificationDescription.textContent = `${documentVerification.remarks || 'The automated check could not approve the marksheet.'} Please bring the original 12th marksheet to the hostel office. Your application has not been rejected.`;
+                    verificationDescription.textContent = `${documentVerification.remarks || 'The Google/OpenAI AI-provenance check requires review of the original marksheet.'}${safeExplanation} Please bring the original 12th marksheet to the hostel office. Your application has not been rejected.`;
                     verificationDescription.style.color = '#b42318';
                     if (verificationItem) verificationItem.className = 'timeline-item active';
-                } else if (verificationStatus.includes('Original Required')) {
-                    verificationDescription.textContent = 'Automated provenance checks found no conclusive risk. Please present the original 12th marksheet for final verification.';
+                } else if (verificationStatus.includes('AI Check Passed')) {
+                    verificationDescription.textContent = `No supported Google/OpenAI AI-provenance signal was detected.${safeExplanation} This does not confirm that an academic board issued the marksheet. Administrator approval is pending.`;
+                    verificationDescription.style.color = '#246b3c';
+                    if (verificationItem) verificationItem.className = 'timeline-item active';
+                } else if (verificationStatus.includes('AI Check Inconclusive')) {
+                    verificationDescription.textContent = `The Google/OpenAI AI-provenance check was inconclusive.${safeExplanation} Administrator review is required before allocation.`;
                     verificationDescription.style.color = '#8a5b00';
                     if (verificationItem) verificationItem.className = 'timeline-item active';
                 } else {
-                    verificationDescription.textContent = 'Your marksheet is queued for provenance screening.';
+                    verificationDescription.textContent = 'Your marksheet is queued for Google/OpenAI metadata and C2PA screening.';
                     if (verificationItem) verificationItem.className = 'timeline-item active';
                 }
             }

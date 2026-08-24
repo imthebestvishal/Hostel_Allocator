@@ -154,28 +154,32 @@ function extractXmpValue(serialized, name) {
   return element ? element[1] : '';
 }
 
+function detectSupportedAiProviders(value) {
+  const text = typeof value === 'string' ? value : JSON.stringify(value || {});
+  const providers = [];
+  if (/\b(?:google[\s_-]*ai|gemini|imagen|synthid)\b/i.test(text)) providers.push('Google');
+  if (/\b(?:openai|chatgpt|dall[\s.·_-]*e)\b/i.test(text)) providers.push('OpenAI');
+  return providers;
+}
+
 function inspectMetadata(file) {
   const raw = file.mimeType === 'application/pdf' ? collectPdfMetadata(file.buffer) : file.mimeType === 'image/jpeg' ? collectJpegMetadata(file.buffer) : collectPngMetadata(file.buffer);
   const serialized = JSON.stringify(raw.fields || {});
   if (raw.fields && !raw.fields.CreatorTool) raw.fields.CreatorTool = extractXmpValue(serialized, 'xmp:CreatorTool');
   if (raw.fields && !raw.fields.CreateDate) raw.fields.CreateDate = extractXmpValue(serialized, 'xmp:CreateDate');
   if (raw.fields && !raw.fields.ModifyDate) raw.fields.ModifyDate = extractXmpValue(serialized, 'xmp:ModifyDate');
-  const softwarePattern = /(photoshop|canva|gimp|firefly|midjourney|stable diffusion|dall.?e|imagen|adobe|affinity|paint\.net)/ig;
-  const editingSoftware = Array.from(new Set(serialized.match(softwarePattern) || [])).slice(0, 20);
-  const created = parseDate(raw.fields && (raw.fields.CreationDate || raw.fields.CreateDate || raw.fields['xmp:CreateDate']));
-  const modified = parseDate(raw.fields && (raw.fields.ModDate || raw.fields.ModifyDate || raw.fields['xmp:ModifyDate']));
-  const timestampContradiction = created !== null && modified !== null && modified < created;
+  const generatorPattern = /\b(?:google[\s_-]*ai|gemini|imagen|synthid|openai|chatgpt|dall[\s.·_-]*e)\b/ig;
+  const aiGeneratorMatches = Array.from(new Set(serialized.match(generatorPattern) || [])).slice(0, 20);
+  const aiGeneratorProviders = detectSupportedAiProviders(serialized);
   const warnings = [];
-  if (editingSoftware.length) warnings.push('EDITING_SOFTWARE_DETECTED');
-  if (timestampContradiction) warnings.push('TIMESTAMP_INCONSISTENCY');
-  if (raw.signaturePresent) warnings.push('PDF_SIGNATURE_PRESENT_REQUIRES_CRYPTOGRAPHIC_VALIDATION');
-  return { summary: raw.fields || {}, editingSoftware, timestampContradiction, warnings, c2paPresent: raw.c2paPresent === true, signaturePresent: raw.signaturePresent === true, pageCount: raw.pageCount || 1 };
+  if (aiGeneratorProviders.length) warnings.push('GOOGLE_OPENAI_GENERATOR_METADATA_DETECTED');
+  return { summary: raw.fields || {}, readable: true, aiGeneratorProviders, aiGeneratorMatches, warnings, c2paPresent: raw.c2paPresent === true };
 }
 
 function inspectC2pa(file, metadata, adapters = {}) {
   if (typeof adapters.c2pa === 'function') return adapters.c2pa(file, metadata);
   const tool = process.env.C2PATOOL_PATH;
-  if (!tool) return { status: metadata.c2paPresent ? 'Unsupported' : 'Absent', issuer: '', signingTime: '', aiGenerated: false, trustedIssuer: false };
+  if (!tool) return { status: metadata.c2paPresent ? 'Unsupported' : 'Absent', provider: '', issuer: '', signer: '', claimGenerator: '', signingTime: '', aiGenerated: false };
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hostel-c2pa-'));
   const target = path.join(tempDir, file.name);
   try {
@@ -183,86 +187,34 @@ function inspectC2pa(file, metadata, adapters = {}) {
     const run = spawnSync(tool, [target, '--detailed'], { encoding: 'utf8', windowsHide: true, timeout: 30000, maxBuffer: 5 * 1024 * 1024 });
     const output = `${run.stdout || ''}\n${run.stderr || ''}`;
     if (run.error) throw run.error;
-    if (/No claim found|manifest.*not found/i.test(output)) return { status: 'Absent', issuer: '', signingTime: '', aiGenerated: false, trustedIssuer: false };
+    if (/No claim found|manifest.*not found/i.test(output)) return { status: 'Absent', provider: '', issuer: '', signer: '', claimGenerator: '', signingTime: '', aiGenerated: false };
     let parsed;
     try { parsed = JSON.parse(run.stdout); } catch (_) { parsed = null; }
     const validationText = JSON.stringify(parsed || output);
     const invalid = /validation[_ -]?(error|failure)|invalid|mismatch/i.test(validationText);
     const untrusted = /untrusted|unknown certificate/i.test(validationText);
     const aiGenerated = /trainedAlgorithmicMedia|generative-ai|ai_generated|digitalSourceType.*algorithm/i.test(validationText);
-    const issuer = String(parsed?.signature_info?.issuer || parsed?.issuer || parsed?.claim_generator || '');
-    const trustedPatterns = String(process.env.TRUSTED_ISSUER_PATTERNS || '').split(',').map(value => value.trim().toLowerCase()).filter(Boolean);
-    const trustedIssuer = !invalid && !untrusted && trustedPatterns.some(pattern => issuer.toLowerCase().includes(pattern));
-    return { status: invalid ? 'Invalid' : untrusted ? 'Untrusted' : 'Valid', issuer, signingTime: String(parsed?.signature_info?.time || ''), aiGenerated, trustedIssuer, manifest: parsed };
+    const issuer = String(parsed?.signature_info?.issuer || parsed?.issuer || '');
+    const claimGenerator = String(parsed?.claim_generator || parsed?.active_manifest?.claim_generator || '');
+    const provider = detectSupportedAiProviders(`${issuer} ${claimGenerator} ${invalid || untrusted ? output : ''}`)[0] || '';
+    return { status: invalid ? 'Invalid' : untrusted ? 'Untrusted' : 'Valid', provider, issuer, signer: issuer, claimGenerator, signingTime: String(parsed?.signature_info?.time || ''), aiGenerated, manifest: parsed };
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
-}
-
-function inspectDigitalSignature(metadata, c2pa) {
-  if (!metadata.signaturePresent) return { status: 'Absent', issuer: '', trustedIssuer: false };
-  if (c2pa.status === 'Valid' && c2pa.trustedIssuer) return { status: 'Valid', issuer: c2pa.issuer, trustedIssuer: true };
-  return { status: 'Unsupported', issuer: '', trustedIssuer: false };
-}
-
-function renderPdfPages(file) {
-  if (file.mimeType !== 'application/pdf') return [];
-  const renderer = process.env.PDF_RENDERER_PATH;
-  if (!renderer) return [];
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hostel-pdf-'));
-  const source = path.join(tempDir, 'source.pdf');
-  const prefix = path.join(tempDir, 'page');
-  try {
-    fs.writeFileSync(source, file.buffer);
-    const run = spawnSync(renderer, ['-png', '-r', '144', source, prefix], { encoding: 'utf8', windowsHide: true, timeout: 60000, maxBuffer: 1024 * 1024 });
-    if (run.error || run.status !== 0) throw new Error(`PDF rendering failed: ${run.error?.message || run.stderr || 'unknown error'}`);
-    return fs.readdirSync(tempDir).filter(name => /^page-\d+\.png$/i.test(name)).sort().map(name => {
-      const bytes = fs.readFileSync(path.join(tempDir, name));
-      return { name, mimeType: 'image/png', checksum: sha256(bytes), size: bytes.length, data: bytes };
-    });
-  } finally {
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-}
-
-async function inspectSynthId(file, pageImages, adapters = {}) {
-  if (typeof adapters.synthId === 'function') return adapters.synthId(file, pageImages);
-  const url = process.env.SYNTHID_OFFICIAL_VERIFIER_URL;
-  if (!url) return { status: 'Not Checked', provider: '', detectorVersion: '', officialDetector: false };
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(process.env.SYNTHID_OFFICIAL_VERIFIER_KEY ? { Authorization: `Bearer ${process.env.SYNTHID_OFFICIAL_VERIFIER_KEY}` } : {}) },
-    body: JSON.stringify({
-      document: { name: file.name, type: file.mimeType, data: file.buffer.toString('base64') },
-      renderedPages: pageImages.map(page => ({ name: page.name, type: page.mimeType, checksum: page.checksum, data: page.data.toString('base64') }))
-    })
-  });
-  if (!response.ok) throw new Error(`Official SynthID verifier failed (${response.status}).`);
-  const result = await response.json();
-  const allowed = ['Detected', 'Not Detected', 'Inconclusive', 'Unsupported'];
-  if (!allowed.includes(result.status)) throw new Error('Official SynthID verifier returned an invalid status.');
-  return { status: result.status, provider: String(result.provider || 'Official SynthID detector'), detectorVersion: String(result.detectorVersion || ''), officialDetector: true };
 }
 
 async function screenProvenance(file, expectedChecksum, adapters = {}) {
   const retrievedChecksum = sha256(file.buffer);
   const metadata = inspectMetadata(file);
   const c2pa = inspectC2pa(file, metadata, adapters);
-  const pageImages = renderPdfPages(file);
-  const synthId = await inspectSynthId(file, pageImages, adapters);
   const warnings = [];
-  if (file.mimeType === 'application/pdf' && !process.env.PDF_RENDERER_PATH) warnings.push('PDF_PAGE_RENDERING_UNAVAILABLE');
   if (c2pa.status === 'Unsupported') warnings.push('C2PA_CRYPTOGRAPHIC_VERIFIER_UNAVAILABLE');
-  if (synthId.status === 'Not Checked') warnings.push('SYNTHID_OFFICIAL_DETECTOR_NOT_CONFIGURED');
   return {
-    verifierConfigured: Boolean(process.env.C2PATOOL_PATH || process.env.SYNTHID_OFFICIAL_VERIFIER_URL || adapters.c2pa || adapters.synthId),
+    verifierConfigured: Boolean(process.env.C2PATOOL_PATH || adapters.c2pa),
     retrievedChecksum,
     checksumMatch: !expectedChecksum || expectedChecksum === retrievedChecksum,
     metadata,
     c2pa,
-    digitalSignature: inspectDigitalSignature(metadata, c2pa),
-    synthId,
-    pageImages: pageImages.map(({ data, ...summary }) => summary),
     warnings
   };
 }
@@ -272,7 +224,7 @@ async function verifyMarksheet(request, response) {
     const body = await readJsonBody(request);
     const file = validateDocument(body.document);
     const screening = await screenProvenance(file, String(body.expectedChecksum || ''));
-    return sendJson(response, 200, { success: true, provider: 'metadata-c2pa-synthid-v1', screening });
+    return sendJson(response, 200, { success: true, provider: 'google-openai-metadata-c2pa-v1', screening });
   } catch (error) {
     return sendJson(response, 400, { success: false, error: String(error && error.message || error) });
   }
@@ -305,8 +257,8 @@ function createServer() {
 if (require.main === module) {
   createServer().listen(PORT, () => {
     console.log(`Hostel portal running at http://localhost:${PORT}`);
-    console.log(`Provenance screening enabled. C2PA: ${process.env.C2PATOOL_PATH ? 'configured' : 'unsupported'}; PDF renderer: ${process.env.PDF_RENDERER_PATH ? 'configured' : 'unavailable'}; SynthID: ${process.env.SYNTHID_OFFICIAL_VERIFIER_URL ? 'official adapter configured' : 'manual review only'}.`);
+    console.log(`Google/OpenAI metadata and C2PA screening enabled. C2PA: ${process.env.C2PATOOL_PATH ? 'configured' : 'unsupported'}.`);
   });
 }
 
-module.exports = { detectFileType, validateDocument, sha256, inspectMetadata, inspectC2pa, inspectDigitalSignature, screenProvenance, createServer };
+module.exports = { detectFileType, validateDocument, sha256, detectSupportedAiProviders, inspectMetadata, inspectC2pa, screenProvenance, createServer };
