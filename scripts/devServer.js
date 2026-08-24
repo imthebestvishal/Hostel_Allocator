@@ -179,7 +179,7 @@ function inspectMetadata(file) {
 function inspectC2pa(file, metadata, adapters = {}) {
   if (typeof adapters.c2pa === 'function') return adapters.c2pa(file, metadata);
   const tool = process.env.C2PATOOL_PATH;
-  if (!tool) return { status: metadata.c2paPresent ? 'Unsupported' : 'Absent', provider: '', issuer: '', signer: '', claimGenerator: '', signingTime: '', aiGenerated: false };
+  if (!tool) return { status: metadata.c2paPresent ? 'Unsupported' : 'Absent', provider: '', issuer: '', signer: '', claimGenerator: '', signingTime: '', verifierVersion: '', aiGenerated: false };
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hostel-c2pa-'));
   const target = path.join(tempDir, file.name);
   try {
@@ -187,7 +187,7 @@ function inspectC2pa(file, metadata, adapters = {}) {
     const run = spawnSync(tool, [target, '--detailed'], { encoding: 'utf8', windowsHide: true, timeout: 30000, maxBuffer: 5 * 1024 * 1024 });
     const output = `${run.stdout || ''}\n${run.stderr || ''}`;
     if (run.error) throw run.error;
-    if (/No claim found|manifest.*not found/i.test(output)) return { status: 'Absent', provider: '', issuer: '', signer: '', claimGenerator: '', signingTime: '', aiGenerated: false };
+    if (/No claim found|manifest.*not found/i.test(output)) return { status: 'Absent', provider: '', issuer: '', signer: '', claimGenerator: '', signingTime: '', verifierVersion: process.env.C2PATOOL_VERSION || 'c2patool', aiGenerated: false };
     let parsed;
     try { parsed = JSON.parse(run.stdout); } catch (_) { parsed = null; }
     const validationText = JSON.stringify(parsed || output);
@@ -197,7 +197,7 @@ function inspectC2pa(file, metadata, adapters = {}) {
     const issuer = String(parsed?.signature_info?.issuer || parsed?.issuer || '');
     const claimGenerator = String(parsed?.claim_generator || parsed?.active_manifest?.claim_generator || '');
     const provider = detectSupportedAiProviders(`${issuer} ${claimGenerator} ${invalid || untrusted ? output : ''}`)[0] || '';
-    return { status: invalid ? 'Invalid' : untrusted ? 'Untrusted' : 'Valid', provider, issuer, signer: issuer, claimGenerator, signingTime: String(parsed?.signature_info?.time || ''), aiGenerated, manifest: parsed };
+    return { status: invalid ? 'Invalid' : untrusted ? 'Untrusted' : 'Valid', provider, issuer, signer: issuer, claimGenerator, signingTime: String(parsed?.signature_info?.time || ''), verifierVersion: process.env.C2PATOOL_VERSION || 'c2patool', aiGenerated, manifest: parsed };
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -224,7 +224,7 @@ async function verifyMarksheet(request, response) {
     const body = await readJsonBody(request);
     const file = validateDocument(body.document);
     const screening = await screenProvenance(file, String(body.expectedChecksum || ''));
-    return sendJson(response, 200, { success: true, provider: 'google-openai-metadata-c2pa-v1', screening });
+    return sendJson(response, 200, { success: true, provider: 'google-openai-c2pa-auto-verify-v2', screening });
   } catch (error) {
     return sendJson(response, 400, { success: false, error: String(error && error.message || error) });
   }

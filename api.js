@@ -530,11 +530,13 @@ function localDetectSupportedAiProviders(value) {
 
 function localAiExplanation(code, provider) {
   const labels = {
-    FILE_INTEGRITY_CONFIRMED: 'The original upload remained unchanged during storage and retrieval.',
+    FILE_INTEGRITY_CONFIRMED: 'The stored and retrieved files have matching checksums.',
     FILE_CHANGED_DURING_TRANSFER: 'The retrieved file checksum does not match the stored upload checksum.',
     NO_SUPPORTED_GENERATOR_METADATA: 'No recognized Google or OpenAI generator metadata was found.',
     GOOGLE_OPENAI_METADATA_DETECTED: `${provider || 'Google/OpenAI'} generator metadata was found in the original file.`,
     C2PA_NOT_PRESENT: 'No C2PA manifest was present in the uploaded file.',
+    C2PA_VERIFICATION_COMPLETED: 'Cryptographic C2PA verification completed.',
+    NO_GOOGLE_OPENAI_C2PA_FOUND: 'No Google/Gemini or OpenAI C2PA provenance was found.',
     NO_SUPPORTED_C2PA_AI_CLAIM: 'No validated Google or OpenAI C2PA AI-generation claim was found.',
     GOOGLE_OPENAI_C2PA_AI_DETECTED: `Validated ${provider || 'Google/OpenAI'} C2PA provenance indicates AI-generated content.`,
     GOOGLE_OPENAI_C2PA_INVALID: `${provider || 'Google/OpenAI'} C2PA provenance is invalid, untrusted, or appears altered.`,
@@ -554,30 +556,32 @@ function localDecideMarksheetVerification(screening) {
   const explanations = [result.checksumMatch === false ? 'FILE_CHANGED_DURING_TRANSFER' : 'FILE_INTEGRITY_CONFIRMED'];
   const metadataProviders = Array.isArray(metadata.aiGeneratorProviders) ? metadata.aiGeneratorProviders.map(provider => localDetectSupportedAiProviders(String(provider))[0] || String(provider)).filter(provider => ['Google', 'OpenAI'].includes(provider)) : localDetectSupportedAiProviders(metadata.summary || metadata);
   const c2paProvider = ['Google', 'OpenAI'].includes(c2pa.provider) ? c2pa.provider : (localDetectSupportedAiProviders([c2pa.provider, c2pa.issuer, c2pa.claimGenerator])[0] || '');
+  const c2paStatus = ['Valid', 'Absent', 'Invalid', 'Untrusted', 'Unsupported'].includes(c2pa.status) ? c2pa.status : 'Unsupported';
   if (result.checksumMatch === false) reasons.push('FILE_CHANGED_DURING_TRANSFER');
-  if (metadata.readable === false) inconclusive.push('METADATA_UNREADABLE');
-  if (metadataProviders.length) reasons.push('GOOGLE_OPENAI_METADATA_DETECTED'); else explanations.push('NO_SUPPORTED_GENERATOR_METADATA');
-  if (result.verifierConfigured === false || c2pa.status === 'Unsupported') inconclusive.push('C2PA_VERIFIER_UNAVAILABLE');
-  if (c2pa.status === 'Absent') explanations.push('C2PA_NOT_PRESENT', 'NO_SUPPORTED_C2PA_AI_CLAIM');
-  if (c2pa.status === 'Valid' && !c2paProvider) inconclusive.push('UNSUPPORTED_C2PA_PROVIDER');
-  if (['Invalid', 'Untrusted'].includes(c2pa.status) && !c2paProvider) inconclusive.push('UNSUPPORTED_C2PA_PROVIDER');
-  if (['Invalid', 'Untrusted'].includes(c2pa.status) && c2paProvider) reasons.push('GOOGLE_OPENAI_C2PA_INVALID');
-  if (c2pa.status === 'Valid' && c2paProvider && c2pa.aiGenerated === true) reasons.push('GOOGLE_OPENAI_C2PA_AI_DETECTED');
-  if (c2pa.status === 'Valid' && c2paProvider && c2pa.aiGenerated !== true) explanations.push('NO_SUPPORTED_C2PA_AI_CLAIM');
+  if (metadataProviders.length) explanations.push('GOOGLE_OPENAI_METADATA_DETECTED'); else explanations.push('NO_SUPPORTED_GENERATOR_METADATA');
+  if (result.verifierConfigured !== true || c2paStatus === 'Unsupported') inconclusive.push('C2PA_VERIFIER_UNAVAILABLE');
+  if (result.verifierConfigured === true && c2paStatus !== 'Unsupported') explanations.push('C2PA_VERIFICATION_COMPLETED');
+  if (c2paStatus === 'Absent') explanations.push('C2PA_NOT_PRESENT', 'NO_GOOGLE_OPENAI_C2PA_FOUND');
+  if (c2paStatus === 'Valid' && !c2paProvider) explanations.push('NO_GOOGLE_OPENAI_C2PA_FOUND');
+  if (['Invalid', 'Untrusted'].includes(c2paStatus) && !c2paProvider) inconclusive.push('UNSUPPORTED_C2PA_PROVIDER');
+  if (['Invalid', 'Untrusted'].includes(c2paStatus) && c2paProvider) reasons.push('GOOGLE_OPENAI_C2PA_INVALID');
+  if (c2paStatus === 'Valid' && c2paProvider) reasons.push('GOOGLE_OPENAI_C2PA_AI_DETECTED');
   const reasonCodes = reasons.filter((reason, index) => reasons.indexOf(reason) === index);
   const inconclusiveCodes = inconclusive.filter((reason, index) => inconclusive.indexOf(reason) === index);
   const explanationCodes = explanations.concat(reasonCodes, inconclusiveCodes).filter((code, index, values) => values.indexOf(code) === index);
-  const provider = metadataProviders[0] || c2paProvider || '';
-  const status = reasonCodes.length ? 'Offline Verification Required' : inconclusiveCodes.length ? 'AI Check Inconclusive — Manual Approval Required' : 'AI Check Passed — Manual Approval Required';
+  const provider = c2paProvider || metadataProviders[0] || '';
+  const status = reasonCodes.length ? 'Offline Verification Required' : inconclusiveCodes.length ? 'AI Check Inconclusive — Manual Approval Required' : 'Verified';
+  const approvalSource = status === 'Verified' ? 'Automated C2PA absence check' : '';
   return {
     status,
     aiProvenanceStatus: reasonCodes.length ? 'Detected' : inconclusiveCodes.length ? 'Inconclusive' : 'Passed',
     provider,
+    approvalSource,
     remarks: status === 'Offline Verification Required'
       ? 'Supported Google/OpenAI AI-provenance signals require review of the original document. The application has not been rejected.'
       : status === 'AI Check Inconclusive — Manual Approval Required'
         ? 'The Google/OpenAI AI-provenance check could not complete conclusively. Administrator approval is required.'
-        : 'No supported Google/OpenAI AI-provenance signal was detected. This does not confirm that a board issued the marksheet; administrator approval is required.',
+        : 'No Google/OpenAI C2PA provenance was found after cryptographic verification. The document was automatically approved under the current policy.',
     reasonCodes,
     inconclusiveCodes,
     explanationCodes,
@@ -672,7 +676,7 @@ async function runLocalMarksheetScreening(enrollmentNo, suppliedResult) {
   student.DocumentRemarks = decision.remarks;
   student.MarksheetVerificationCheckedAt = new Date().toISOString();
   student.MarksheetVerificationProvider = 'Google/OpenAI metadata and C2PA';
-  student.MarksheetVerificationModel = 'google-openai-metadata-c2pa-v1';
+  student.MarksheetVerificationModel = 'google-openai-c2pa-auto-verify-v2';
   student.MarksheetVerificationReasons = JSON.stringify(decision.reasonCodes);
   student.MarksheetVerificationExplanationCodes = JSON.stringify(decision.explanationCodes);
   student.MarksheetVerificationSummary = JSON.stringify(decision.explanationSummary);
@@ -682,10 +686,20 @@ async function runLocalMarksheetScreening(enrollmentNo, suppliedResult) {
   student.MarksheetMetadataSummary = JSON.stringify(screening.metadata || {});
   student.MarksheetMetadataFindings = JSON.stringify(screening.metadata?.aiGeneratorProviders || []);
   student.MarksheetC2paStatus = screening.c2pa?.status || 'Unsupported';
+  student.MarksheetC2paProvider = screening.c2pa?.provider || '';
   student.MarksheetC2paIssuer = screening.c2pa?.issuer || '';
   student.MarksheetC2paSigner = screening.c2pa?.signer || screening.c2pa?.issuer || '';
   student.MarksheetC2paSigningTime = screening.c2pa?.signingTime || '';
+  student.MarksheetC2paVerifierVersion = screening.c2pa?.verifierVersion || screening.verifierVersion || '';
+  student.MarksheetApprovalSource = decision.approvalSource;
   student.MarksheetScreeningAttempts = Number(student.MarksheetScreeningAttempts || 0) + 1;
+  if (decision.status === 'Verified') {
+    let audit = [];
+    try { audit = JSON.parse(student.DocumentAuditLog || '[]'); } catch (error) { audit = []; }
+    if (!Array.isArray(audit)) audit = [];
+    audit.push({ at: new Date().toISOString(), reviewer: 'Automated C2PA worker', evidenceSource: decision.approvalSource, previousStatus: 'Screening Pending', newStatus: 'Verified', remarks: decision.remarks });
+    student.DocumentAuditLog = JSON.stringify(audit.slice(-50));
+  }
   if (decision.status === 'Offline Verification Required' && !student.OfflineVerificationEmailSentAt) {
     student.OfflineVerificationEmailSentAt = new Date().toISOString();
     try {
@@ -821,7 +835,7 @@ function handleLocalFallback(action, data, params) {
       const isAllocated = String(s.Status || '').toLowerCase() === 'allocated';
       const alloc = LOCAL_MOCK_STORE.allocations.find(a => String(a.EnrollmentNo).trim().toLowerCase() === enrollInput);
       const applicationDetails = { ...s };
-      ['MarksheetChecksum', 'MarksheetBrowserChecksum', 'MarksheetRetrievedChecksum', 'MarksheetMetadataSummary', 'MarksheetMetadataFindings', 'MarksheetC2paIssuer', 'MarksheetC2paSigner', 'MarksheetC2paSigningTime', 'MarksheetSynthIdProvider', 'MarksheetSynthIdDetectorVersion', 'MarksheetVerificationReasons', 'MarksheetVerificationExplanationCodes', 'MarksheetVerificationSummary', 'MarksheetVerificationLastError', 'DocumentAuditLog'].forEach(key => { delete applicationDetails[key]; });
+      ['MarksheetChecksum', 'MarksheetBrowserChecksum', 'MarksheetRetrievedChecksum', 'MarksheetMetadataSummary', 'MarksheetMetadataFindings', 'MarksheetAiProvenanceStatus', 'MarksheetAiProvider', 'MarksheetC2paStatus', 'MarksheetC2paProvider', 'MarksheetC2paIssuer', 'MarksheetC2paSigner', 'MarksheetC2paSigningTime', 'MarksheetC2paVerifierVersion', 'MarksheetApprovalSource', 'MarksheetSynthIdProvider', 'MarksheetSynthIdDetectorVersion', 'MarksheetVerificationReasons', 'MarksheetVerificationExplanationCodes', 'MarksheetVerificationSummary', 'MarksheetVerificationLastError', 'DocumentAuditLog'].forEach(key => { delete applicationDetails[key]; });
       let verificationSummary = [];
       try { verificationSummary = JSON.parse(String(s.MarksheetVerificationSummary || '[]')); } catch (error) { verificationSummary = []; }
       if (!Array.isArray(verificationSummary)) verificationSummary = [];
@@ -842,6 +856,7 @@ function handleLocalFallback(action, data, params) {
           checkedAt: s.MarksheetVerificationCheckedAt || '',
           remarks: s.DocumentRemarks || '',
           aiCheckStatus: s.MarksheetAiProvenanceStatus || (s.DocumentStatus === 'Screening Pending' ? 'Pending' : ''),
+          approvalSource: s.MarksheetApprovalSource || '',
           explanation: verificationSummary.map(String).slice(0, 8),
           instructions: String(s.DocumentStatus || '').toLowerCase() === 'offline verification required'
             ? 'Please bring the original 12th marksheet to the hostel office for offline verification.'
@@ -908,7 +923,7 @@ function handleLocalFallback(action, data, params) {
         DocumentRemarks: 'Google/OpenAI AI-provenance screening is pending.',
         DiscrepancyEmailSentAt: '',
         OfflineVerificationEmailSentAt: '',
-        DocumentPolicyVersion: 'metadata-c2pa-google-openai-v1',
+        DocumentPolicyVersion: 'google-openai-c2pa-auto-verify-v2',
         MarksheetScreeningAttempts: 0
       };
 
@@ -926,7 +941,7 @@ function handleLocalFallback(action, data, params) {
       const manualDecision = String(data.ManualDecision || data.manualDecision || '').trim();
       let requestedStatus = data.DocumentStatus || s.DocumentStatus;
       let evidenceSource = String(data.EvidenceSource || data.evidenceSource || '').trim();
-      if (policyVersion === 'metadata-c2pa-google-openai-v1' && manualDecision) {
+      if (policyVersion === 'google-openai-c2pa-auto-verify-v2' && manualDecision) {
         if (!['Approve after document review', 'Require original verification'].includes(manualDecision)) return { success: false, error: 'Select a valid manual verification decision.' };
         requestedStatus = manualDecision === 'Approve after document review' ? 'Verified' : 'Offline Verification Required';
         evidenceSource = 'Administrator Document Review';
@@ -952,6 +967,7 @@ function handleLocalFallback(action, data, params) {
       s.DocumentManualReviewer = data.Reviewer || data.reviewer || 'Administrator';
       s.DocumentManualReviewedAt = new Date().toISOString();
       s.DocumentManualEvidenceSource = evidenceSource;
+      s.MarksheetApprovalSource = requestedStatus === 'Verified' ? 'Administrator Document Review' : '';
       let audit = [];
       try { audit = JSON.parse(s.DocumentAuditLog || '[]'); } catch (e) { audit = []; }
       if (!Array.isArray(audit)) audit = [];

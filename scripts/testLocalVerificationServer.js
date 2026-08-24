@@ -61,7 +61,7 @@ async function main() {
     const result = await response.json();
     assert.equal(response.status, 200);
     assert.equal(result.success, true);
-    assert.equal(result.provider, 'google-openai-metadata-c2pa-v1');
+    assert.equal(result.provider, 'google-openai-c2pa-auto-verify-v2');
     assert.equal(result.screening.checksumMatch, true);
     assert.equal(result.screening.retrievedChecksum, expectedChecksum);
     assert.equal(result.screening.c2pa.status, 'Absent');

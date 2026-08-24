@@ -1314,7 +1314,9 @@
                     ? ` ${documentVerification.explanation.join(' ')}`
                     : '';
                 if (verificationStatus === 'Verified') {
-                    verificationDescription.textContent = 'An administrator approved the marksheet after document review. The application is eligible for allocation.';
+                    verificationDescription.textContent = documentVerification.approvalSource === 'Automated C2PA absence check'
+                        ? `Verified — no Google/OpenAI C2PA provenance was found after cryptographic verification.${safeExplanation} This check does not confirm that an academic board issued the marksheet. The application is eligible for allocation.`
+                        : 'An administrator approved the marksheet after document review. The application is eligible for allocation.';
                     if (verificationItem) verificationItem.className = 'timeline-item completed';
                 } else if (verificationStatus === 'Offline Verification Required') {
                     verificationDescription.textContent = `${documentVerification.remarks || 'The Google/OpenAI AI-provenance check requires review of the original marksheet.'}${safeExplanation} Please bring the original 12th marksheet to the hostel office. Your application has not been rejected.`;
@@ -1329,7 +1331,7 @@
                     verificationDescription.style.color = '#8a5b00';
                     if (verificationItem) verificationItem.className = 'timeline-item active';
                 } else {
-                    verificationDescription.textContent = 'Your marksheet is queued for Google/OpenAI metadata and C2PA screening.';
+                    verificationDescription.textContent = 'Your marksheet is queued for Google/OpenAI C2PA screening.';
                     if (verificationItem) verificationItem.className = 'timeline-item active';
                 }
             }

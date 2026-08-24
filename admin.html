@@ -2081,13 +2081,19 @@
                 { key: 'marksheet', label: '12th Marksheet', file: 'MarksheetFile', status: 'MarksheetStatus', remarks: 'MarksheetRemarks', required: true },
                 { key: 'pwdCertificate', label: 'PWD Certificate', file: 'PwdCertificateFile', status: 'PwdCertificateStatus', remarks: 'PwdCertificateRemarks', required: String(getStudentValue(student, 'PWD')).toLowerCase() === 'yes' }
             ];
-            return ['marksheet-only-v1', 'marksheet-provenance-v1', 'metadata-c2pa-google-openai-v1'].includes(String(getStudentValue(student, 'DocumentPolicyVersion')))
+            return ['marksheet-only-v1', 'marksheet-provenance-v1', 'metadata-c2pa-google-openai-v1', 'google-openai-c2pa-auto-verify-v2'].includes(String(getStudentValue(student, 'DocumentPolicyVersion')))
                 ? [legacyDefinitions[2]]
                 : legacyDefinitions;
         }
 
         function usesGoogleOpenAiPolicy(student) {
-            return String(getStudentValue(student, 'DocumentPolicyVersion')) === 'metadata-c2pa-google-openai-v1';
+            return String(getStudentValue(student, 'DocumentPolicyVersion')) === 'google-openai-c2pa-auto-verify-v2';
+        }
+
+        function requiresNewPolicyManualReview(student) {
+            if (!usesGoogleOpenAiPolicy(student)) return false;
+            const status = String(getStudentValue(student, 'DocumentStatus') || '');
+            return status === 'Offline Verification Required' || status.includes('Inconclusive');
         }
 
         function parseStoredStringList(value) {
@@ -2117,8 +2123,13 @@
             document.getElementById('docEvidenceSource').value = getStudentValue(currentDocumentStudent, 'DocumentManualEvidenceSource') || '';
             document.getElementById('docManualReviewer').value = getStudentValue(currentDocumentStudent, 'DocumentManualReviewer') || 'Administrator';
             const isNewAiPolicy = usesGoogleOpenAiPolicy(currentDocumentStudent);
-            document.getElementById('docNewPolicyReviewControls').style.display = isNewAiPolicy ? '' : 'none';
+            const requiresManualReview = requiresNewPolicyManualReview(currentDocumentStudent);
+            document.getElementById('docNewPolicyReviewControls').style.display = requiresManualReview ? '' : 'none';
             document.getElementById('docLegacyReviewControls').style.display = isNewAiPolicy ? 'none' : '';
+            const manualDecisionBox = document.getElementById('docNewPolicyReviewControls').closest('.manual-decision-box');
+            if (manualDecisionBox) manualDecisionBox.style.display = (!isNewAiPolicy || requiresManualReview) ? '' : 'none';
+            const saveVerificationButton = document.getElementById('saveDocumentVerificationBtn');
+            if (saveVerificationButton) saveVerificationButton.style.display = (!isNewAiPolicy || requiresManualReview) ? '' : 'none';
             const currentDocumentStatus = String(getStudentValue(currentDocumentStudent, 'DocumentStatus') || '');
             const wasManuallyReviewed = String(getStudentValue(currentDocumentStudent, 'DocumentManualEvidenceSource') || '') === 'Administrator Document Review';
             document.getElementById('docManualDecision').value = wasManuallyReviewed
@@ -2133,10 +2144,15 @@
             if (screeningMeta) {
                 const provider = getStudentValue(currentDocumentStudent, 'MarksheetVerificationProvider') || 'Not screened';
                 const checkedAt = getStudentValue(currentDocumentStudent, 'MarksheetVerificationCheckedAt') || '-';
-                const storedAiStatus = getStudentValue(currentDocumentStudent, 'MarksheetAiProvenanceStatus') || (currentDocumentStatus === 'Screening Pending' ? 'Pending' : currentDocumentStatus.includes('Inconclusive') ? 'Inconclusive' : currentDocumentStatus === 'Offline Verification Required' ? 'Detected' : 'Pending');
-                const aiStatus = currentDocumentStatus === 'Verified' && wasManuallyReviewed ? 'Manually Verified' : storedAiStatus;
+                const storedAiStatus = String(getStudentValue(currentDocumentStudent, 'MarksheetAiProvenanceStatus') || '');
+                const isHistoricalWithoutEvidence = !isNewAiPolicy && !storedAiStatus;
+                const inferredNewStatus = currentDocumentStatus === 'Screening Pending' ? 'Pending' : currentDocumentStatus.includes('Inconclusive') ? 'Inconclusive' : currentDocumentStatus === 'Verified' ? 'Passed' : 'Pending';
+                const aiStatus = currentDocumentStatus === 'Verified' && wasManuallyReviewed ? 'Manually Verified' : isHistoricalWithoutEvidence ? 'Historical — Not checked' : (storedAiStatus || inferredNewStatus);
                 const aiProvider = getStudentValue(currentDocumentStudent, 'MarksheetAiProvider') || '-';
+                const approvalSource = getStudentValue(currentDocumentStudent, 'MarksheetApprovalSource') || getStudentValue(currentDocumentStudent, 'DocumentManualEvidenceSource') || '-';
                 const c2pa = getStudentValue(currentDocumentStudent, 'MarksheetC2paStatus') || 'Not checked';
+                const c2paProvider = getStudentValue(currentDocumentStudent, 'MarksheetC2paProvider') || '-';
+                const verifierVersion = getStudentValue(currentDocumentStudent, 'MarksheetC2paVerifierVersion') || '-';
                 const c2paIssuer = getStudentValue(currentDocumentStudent, 'MarksheetC2paIssuer') || '-';
                 const c2paSigner = getStudentValue(currentDocumentStudent, 'MarksheetC2paSigner') || c2paIssuer;
                 const metadataFindings = parseStoredStringList(getStudentValue(currentDocumentStudent, 'MarksheetMetadataFindings'));
@@ -2146,21 +2162,23 @@
                 const checksumMatch = storedChecksum !== '-' && retrievedChecksum !== '-' ? (storedChecksum === retrievedChecksum ? 'Match' : 'Mismatch') : 'Not checked';
                 let explanations = parseStoredStringList(getStudentValue(currentDocumentStudent, 'MarksheetVerificationSummary'));
                 if (!explanations.length) {
-                    if (aiStatus === 'Pending') explanations = ['The document is waiting for Google/OpenAI metadata and C2PA screening.'];
+                    if (isHistoricalWithoutEvidence) explanations = ['Historical result — AI provenance not checked.'];
+                    else if (aiStatus === 'Pending') explanations = ['The document is waiting for Google/OpenAI C2PA screening.'];
                     else if (aiStatus === 'Manually Verified') explanations = ['An administrator approved the document after review.'];
                     else explanations = ['No detailed explanation was stored for this historical result.'];
                 }
                 const browserChecksumMatch = browserChecksum === '-' || storedChecksum === '-' ? 'Not checked' : (browserChecksum === storedChecksum ? 'Match' : 'Mismatch');
                 const visualState = aiStatus === 'Passed' || aiStatus === 'Manually Verified' ? 'passed' : aiStatus === 'Detected' ? 'detected' : aiStatus === 'Inconclusive' ? 'inconclusive' : 'pending';
-                const verdict = aiStatus === 'Passed' ? 'AI check passed — administrator approval required' : aiStatus === 'Detected' ? 'Supported AI provenance detected' : aiStatus === 'Inconclusive' ? 'AI check inconclusive' : aiStatus === 'Manually Verified' ? 'Manually verified after document review' : 'AI check pending';
+                const aiBadgeClass = isHistoricalWithoutEvidence ? 'status-neutral' : getDocumentBadgeClass(currentDocumentStatus);
+                const verdict = aiStatus === 'Passed' && currentDocumentStatus === 'Verified' ? 'Verified — No Google/OpenAI C2PA Found' : aiStatus === 'Passed' ? 'C2PA check passed' : aiStatus === 'Detected' ? 'Supported AI provenance detected' : aiStatus === 'Inconclusive' ? 'AI check inconclusive' : aiStatus === 'Manually Verified' ? 'Manually verified after document review' : isHistoricalWithoutEvidence ? 'Historical result — AI provenance not checked' : 'AI check pending';
                 screeningMeta.innerHTML = `
                     <section class="ai-check-card is-${visualState}">
                         <div class="ai-check-head">
                             <div><div class="ai-check-title">Google/OpenAI AI Provenance Check</div><div class="ai-check-verdict">${escapeHtml(verdict)}</div></div>
-                            <span class="status-badge ${getDocumentBadgeClass(currentDocumentStatus)}">${escapeHtml(aiStatus)}</span>
+                            <span class="status-badge ${aiBadgeClass}">${escapeHtml(aiStatus)}</span>
                         </div>
                         <ul class="ai-check-explanation">${explanations.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
-                        <div class="ai-check-note">A passed AI check means no supported Google/OpenAI signal was found. It does not confirm that an academic board issued the marksheet.</div>
+                        <div class="ai-check-note">This check evaluates Google/OpenAI C2PA provenance only. It does not confirm that an academic board issued the marksheet.</div>
                         <details class="ai-check-technical">
                             <summary>Technical details</summary>
                             <div class="ai-check-grid">
@@ -2171,7 +2189,9 @@
                                 <div><strong>Metadata provider</strong>${escapeHtml(metadataFindings.join(', ') || aiProvider)}</div>
                                 <div><strong>C2PA status</strong>${escapeHtml(c2pa)}</div>
                                 <div><strong>C2PA signer</strong>${escapeHtml(c2paSigner)}</div>
-                                <div><strong>Detected provider</strong>${escapeHtml(aiProvider)}</div>
+                                <div><strong>C2PA verifier</strong>${escapeHtml(verifierVersion)}</div>
+                                <div><strong>C2PA provider</strong>${escapeHtml(c2paProvider)}</div>
+                                <div><strong>Approval source</strong>${escapeHtml(approvalSource)}</div>
                             </div>
                         </details>
                     </section>`;
@@ -2221,7 +2241,7 @@
                                 <span class="status-badge ${getDocumentBadgeClass(statusValue)}" data-doc-status-label>${escapeHtml(statusValue)}</span>
                             </div>
                             <div class="document-actions">
-                                ${isNewAiPolicy ? '<span style="font-size:.8rem;color:var(--c-muted);">Use the administrator decision below after reviewing the uploaded file.</span>' : `<button class="btn-outline" type="button" ${canOpen ? '' : 'disabled style="opacity: 0.5; cursor: not-allowed;" title="Cannot verify: No document uploaded"'} onclick="setDocumentReviewStatus('${doc.key}', 'Verified')">Verify</button><button class="btn-outline" type="button" onclick="setDocumentReviewStatus('${doc.key}', 'Discrepancy')">Discrepancy</button>`}
+                                ${isNewAiPolicy ? (requiresManualReview ? '<span style="font-size:.8rem;color:var(--c-muted);">Review the uploaded file and record the administrator decision below.</span>' : '<span style="font-size:.8rem;color:var(--c-muted);">No administrator action is required for this automated result.</span>') : `<button class="btn-outline" type="button" ${canOpen ? '' : 'disabled style="opacity: 0.5; cursor: not-allowed;" title="Cannot verify: No document uploaded"'} onclick="setDocumentReviewStatus('${doc.key}', 'Verified')">Verify</button><button class="btn-outline" type="button" onclick="setDocumentReviewStatus('${doc.key}', 'Discrepancy')">Discrepancy</button>`}
                                 <input class="form-control" data-doc-remarks placeholder="Remarks for ${escapeHtml(doc.label)}" value="${escapeHtml(remarksValue)}">
                                 <input type="hidden" data-doc-status value="${escapeHtml(statusValue)}">
                                 <input type="hidden" data-doc-file-url value="${escapeHtml(normalizedFile)}">
@@ -2414,7 +2434,7 @@
         async function confirmAndSaveDocumentVerification() {
             if (!currentDocumentStudent) return false;
             const payload = collectDocumentReviewPayload();
-            if (usesGoogleOpenAiPolicy(currentDocumentStudent) && !payload.ManualDecision) {
+            if (requiresNewPolicyManualReview(currentDocumentStudent) && !payload.ManualDecision) {
                 showAdminToast('Select an administrator decision before saving.', 'error');
                 return false;
             }

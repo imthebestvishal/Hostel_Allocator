@@ -73,9 +73,12 @@ const STUDENT_DOCUMENT_COLUMNS = [
   'MarksheetAiProvenanceStatus',
   'MarksheetAiProvider',
   'MarksheetC2paStatus',
+  'MarksheetC2paProvider',
   'MarksheetC2paIssuer',
   'MarksheetC2paSigner',
   'MarksheetC2paSigningTime',
+  'MarksheetC2paVerifierVersion',
+  'MarksheetApprovalSource',
   'MarksheetDigitalSignatureStatus',
   'MarksheetSynthIdStatus',
   'MarksheetSynthIdProvider',
@@ -324,7 +327,7 @@ function getStudentStatus(enrollmentNo, dob) {
   
   const studentName = student.Name || student.name || 'Student';
   const applicationDetails = Object.assign({}, student);
-  ['MarksheetChecksum', 'MarksheetBrowserChecksum', 'MarksheetRetrievedChecksum', 'MarksheetMetadataSummary', 'MarksheetMetadataFindings', 'MarksheetC2paIssuer', 'MarksheetC2paSigner', 'MarksheetC2paSigningTime', 'MarksheetSynthIdProvider', 'MarksheetSynthIdDetectorVersion', 'MarksheetVerificationReasons', 'MarksheetVerificationExplanationCodes', 'MarksheetVerificationSummary', 'MarksheetVerificationLastError', 'DocumentAuditLog'].forEach(key => { delete applicationDetails[key]; });
+  ['MarksheetChecksum', 'MarksheetBrowserChecksum', 'MarksheetRetrievedChecksum', 'MarksheetMetadataSummary', 'MarksheetMetadataFindings', 'MarksheetAiProvenanceStatus', 'MarksheetAiProvider', 'MarksheetC2paStatus', 'MarksheetC2paProvider', 'MarksheetC2paIssuer', 'MarksheetC2paSigner', 'MarksheetC2paSigningTime', 'MarksheetC2paVerifierVersion', 'MarksheetApprovalSource', 'MarksheetSynthIdProvider', 'MarksheetSynthIdDetectorVersion', 'MarksheetVerificationReasons', 'MarksheetVerificationExplanationCodes', 'MarksheetVerificationSummary', 'MarksheetVerificationLastError', 'DocumentAuditLog'].forEach(key => { delete applicationDetails[key]; });
 
   let verificationSummary = [];
   try { verificationSummary = JSON.parse(String(student.MarksheetVerificationSummary || '[]')); } catch (error) { verificationSummary = []; }
@@ -343,6 +346,7 @@ function getStudentStatus(enrollmentNo, dob) {
       checkedAt: student.MarksheetVerificationCheckedAt || '',
       remarks: student.DocumentRemarks || '',
       aiCheckStatus: student.MarksheetAiProvenanceStatus || (student.DocumentStatus === 'Screening Pending' ? 'Pending' : ''),
+      approvalSource: student.MarksheetApprovalSource || '',
       explanation: verificationSummary.map(String).slice(0, 8),
       instructions: String(student.DocumentStatus || '').toLowerCase() === 'offline verification required'
         ? 'Please bring the original 12th marksheet to the hostel office for offline verification.'
@@ -630,6 +634,7 @@ function updateDocumentVerification(data) {
         DocumentManualReviewer: reviewer,
         DocumentManualReviewedAt: new Date(),
         DocumentManualEvidenceSource: evidenceSource,
+        MarksheetApprovalSource: requestedStatus === 'Verified' ? 'Administrator Document Review' : '',
         DocumentPreviousStatus: previousStatus
       };
       const auditEntry = {
