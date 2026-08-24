@@ -127,7 +127,17 @@ function normalizeDateStr(val) {
     return Utilities.formatDate(val, Session.getScriptTimeZone() || "GMT", "yyyy-MM-dd");
   }
   let str = String(val).trim();
-  if (str.includes('T')) str = str.split('T')[0];
+  if (str.includes('T')) {
+    // Cached Sheet rows serialize Date objects as UTC ISO strings. Convert those
+    // instants back to the script timezone before comparing a date-only DOB.
+    if (/(?:Z|[+-]\d{2}:?\d{2})$/i.test(str)) {
+      const parsed = new Date(str);
+      if (!isNaN(parsed.getTime())) {
+        return Utilities.formatDate(parsed, Session.getScriptTimeZone() || "Asia/Kolkata", "yyyy-MM-dd");
+      }
+    }
+    str = str.split('T')[0];
+  }
   
   if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(str)) {
     let p = str.split('-');

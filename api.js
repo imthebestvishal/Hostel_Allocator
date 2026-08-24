@@ -579,7 +579,23 @@ function saveLocalStudents(list) {
 function normalizeDateComparison(val) {
   if (!val) return '';
   let str = String(val).trim();
-  if (str.includes('T')) str = str.split('T')[0];
+  if (str.includes('T')) {
+    // The backend may return a cached Sheet date as a UTC ISO timestamp.
+    // DOBs are Indian calendar dates, so restore the Asia/Kolkata date first.
+    if (/(?:Z|[+-]\d{2}:?\d{2})$/i.test(str)) {
+      const parsed = new Date(str);
+      if (!Number.isNaN(parsed.getTime())) {
+        const parts = new Intl.DateTimeFormat('en-US', {
+          timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit'
+        }).formatToParts(parsed).reduce((result, part) => {
+          if (part.type !== 'literal') result[part.type] = part.value;
+          return result;
+        }, {});
+        if (parts.year && parts.month && parts.day) return `${parts.year}-${parts.month}-${parts.day}`;
+      }
+    }
+    str = str.split('T')[0];
+  }
   if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(str)) {
     const p = str.split('-');
     return `${p[0]}-${p[1].padStart(2,'0')}-${p[2].padStart(2,'0')}`;

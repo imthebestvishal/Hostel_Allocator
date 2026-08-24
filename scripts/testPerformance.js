@@ -48,6 +48,7 @@ async function testFrontendCache(root) {
   sandbox.window.localStorage = localStorage;
   vm.createContext(sandbox);
   vm.runInContext(fs.readFileSync(path.join(root, 'api.js'), 'utf8'), sandbox);
+  assert.equal(vm.runInContext("normalizeDateComparison('2026-08-24T18:30:00.000Z')", sandbox), '2026-08-25', 'frontend must restore cached UTC DOBs to the India calendar date');
 
   const [first, second] = await Promise.all([sandbox.window.HostelAPI.getDashboard(), sandbox.window.HostelAPI.getDashboard()]);
   assert.equal(first.totalApplied, 505);
@@ -72,6 +73,8 @@ function testBackendPagination(root) {
     Date,
     Math,
     JSON,
+    Session: { getScriptTimeZone: () => 'Asia/Kolkata' },
+    Utilities: { formatDate: value => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(value) },
     CacheService: { getScriptCache: () => ({
       get: key => cacheValues.get(key) || null,
       put: (key, value) => cacheValues.set(key, value)
@@ -79,6 +82,7 @@ function testBackendPagination(root) {
   };
   vm.createContext(sandbox);
   vm.runInContext(fs.readFileSync(path.join(root, 'backend', 'DataService.js'), 'utf8'), sandbox);
+  assert.equal(sandbox.normalizeDateStr('2026-08-24T18:30:00.000Z'), '2026-08-25', 'backend must restore cached UTC DOBs to the script calendar date');
 
   const students = Array.from({ length: 125 }, (_, index) => ({
     ApplicationID: `APP-${index + 1}`,
