@@ -1,7 +1,8 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { MARKSHEET_POLICY_VERSION, detectMarksheetFileType, validateMarksheetBytes, sha256Hex, detectSupportedAiProviders, decideProvenanceVerification, resolveMarksheetScreeningAttempt, processPendingMarksheetScreenings } = require('../backend/DocumentVerificationService.js');
+const crypto = require('node:crypto');
+const { MARKSHEET_POLICY_VERSION, detectMarksheetFileType, validateMarksheetBytes, sha256Hex, detectSupportedAiProviders, decideProvenanceVerification, resolveMarksheetScreeningAttempt, processPendingMarksheetScreenings, processHistoricalMarksheetMigration, createVerifierRequestSignature, createVerifierCallbackSignature, downloadMarksheetForVerifier } = require('../backend/DocumentVerificationService.js');
 
 const bytes = value => Array.from(Buffer.from(value));
 const base = {
@@ -20,6 +21,29 @@ assert.throws(() => validateMarksheetBytes(bytes('plain text'), 'application/pdf
 assert.throws(() => validateMarksheetBytes(bytes('%PDF-1.4\n%%EOF'), 'image/png'), /does not match/i);
 assert.equal(validateMarksheetBytes(bytes('%PDF-1.4\n%%EOF'), 'application/pdf').mimeType, 'application/pdf');
 assert.equal(sha256Hex(bytes('unchanged')), require('node:crypto').createHash('sha256').update('unchanged').digest('hex'));
+
+global.Utilities = {
+  DigestAlgorithm: { SHA_256: 'SHA_256' },
+  newBlob: value => ({ getBytes: () => Array.from(Buffer.from(value, 'utf8')) }),
+  computeDigest: (_algorithm, value) => Array.from(crypto.createHash('sha256').update(Buffer.from(value)).digest()),
+  computeHmacSha256Signature: (value, key) => Array.from(crypto.createHmac('sha256', key).update(value).digest())
+};
+global.Utilities.base64Encode = value => Buffer.from(value).toString('base64');
+const signedPayload = JSON.stringify({ document: { name: 'marksheet.png' } });
+const signedTimestamp = '1787600000000';
+const signedNonce = 'request-nonce';
+const signedBodyHash = crypto.createHash('sha256').update(signedPayload).digest('hex');
+assert.equal(createVerifierRequestSignature('shared-secret', signedTimestamp, signedNonce, signedPayload), crypto.createHmac('sha256', 'shared-secret').update(`${signedTimestamp}.${signedNonce}.${signedBodyHash}`).digest('hex'));
+
+const callbackData = { timestamp: String(Date.now()), nonce: 'callback-nonce', fileId: 'file-1', expectedChecksum: sha256Hex(bytes('callback document')), applicationId: 'APP-1' };
+callbackData.signature = createVerifierCallbackSignature('shared-secret', callbackData);
+const callbackResult = downloadMarksheetForVerifier(callbackData, {
+  secret: 'shared-secret', skipReplayCheck: true, skipStudentCheck: true,
+  getBlob: () => ({ getBytes: () => bytes('callback document'), getName: () => 'marksheet.pdf', getContentType: () => 'application/pdf' })
+});
+assert.equal(callbackResult.success, true);
+assert.equal(Buffer.from(callbackResult.document.data, 'base64').toString(), 'callback document');
+assert.throws(() => downloadMarksheetForVerifier({ ...callbackData, signature: '00'.repeat(32) }, { secret: 'shared-secret', skipReplayCheck: true, skipStudentCheck: true }), /signature is invalid/i);
 
 assert.deepEqual(detectSupportedAiProviders('Gemini and DALL-E'), ['Google', 'OpenAI']);
 assert.deepEqual(detectSupportedAiProviders('Adobe Photoshop'), []);
@@ -49,9 +73,10 @@ for (const provider of ['Google', 'OpenAI']) {
 }
 
 for (const identity of ['Google AI', 'Gemini', 'Imagen', 'OpenAI', 'ChatGPT', 'DALL-E']) {
-  const attributedC2pa = decideProvenanceVerification({ ...base, c2pa: { status: 'Valid', provider: '', issuer: identity, claimGenerator: identity, aiGenerated: false } });
+  const attributedC2pa = decideProvenanceVerification({ ...base, c2pa: { status: 'Valid', provider: '', issuer: identity, claimGenerator: identity, aiGenerated: true } });
   assert.equal(attributedC2pa.status, 'Offline Verification Required', `${identity} C2PA should require offline verification`);
 }
+assert.equal(decideProvenanceVerification({ ...base, c2pa: { status: 'Valid', provider: 'Google', issuer: 'Google', aiGenerated: false } }).status, 'Verified');
 
 assert.equal(decideProvenanceVerification({ ...base, verifierConfigured: false, c2pa: { status: 'Unsupported' } }).status, 'AI Check Inconclusive — Manual Approval Required');
 assert.equal(decideProvenanceVerification({ ...base, metadata: { ...base.metadata, readable: false } }).status, 'Verified');
@@ -95,6 +120,32 @@ assert.equal(JSON.parse(workerRecord.DocumentAuditLog).at(-1).evidenceSource, 'A
 assert.equal(offlineNotifications, 0);
 assert.equal(processPendingMarksheetScreenings({ sheet: workerSheet, lock: { tryLock: () => true, releaseLock: () => {} } }).processed, 0);
 
+const migrationHeaders = ['ApplicationID', 'EnrollmentNo', 'DocumentPolicyVersion', 'DocumentStatus', 'DocumentAuditLog', 'DocumentManualReviewedAt', 'DocumentManualEvidenceSource', 'MarksheetFileId', 'MarksheetStatus', 'MarksheetRemarks', 'DocumentRemarks', 'MarksheetScreeningAttempts', 'MarksheetVerificationCheckedAt', 'MarksheetVerificationLastError', 'MarksheetAiProvenanceStatus', 'MarksheetApprovalSource', 'MarksheetVerificationReasons', 'OfflineVerificationEmailSentAt'];
+const migrationRecords = [
+  { ApplicationID: 'OLD-1', EnrollmentNo: '119051625', DocumentPolicyVersion: 'marksheet-provenance-v1', DocumentStatus: 'Offline Verification Required', DocumentAuditLog: '[]', MarksheetFileId: 'file-old', MarksheetVerificationReasons: '["PROVENANCE_VERIFIER_UNAVAILABLE"]', OfflineVerificationEmailSentAt: 'already-sent' },
+  { ApplicationID: 'MANUAL-1', EnrollmentNo: '2', DocumentPolicyVersion: 'marksheet-provenance-v1', DocumentStatus: 'Offline Verification Required', DocumentAuditLog: '[]', MarksheetFileId: 'file-manual', DocumentManualReviewedAt: '2026-08-25' },
+  { ApplicationID: 'VERIFIED-1', EnrollmentNo: '3', DocumentPolicyVersion: MARKSHEET_POLICY_VERSION, DocumentStatus: 'Verified', DocumentAuditLog: '[]', MarksheetFileId: 'file-verified' }
+];
+const migrationRows = [migrationHeaders, ...migrationRecords.map(record => migrationHeaders.map(header => record[header] ?? ''))];
+const migrationSheet = {
+  getLastColumn: () => migrationHeaders.length,
+  getRange: (row, column) => ({
+    getDisplayValues: () => row === 1 ? [migrationHeaders] : [[migrationRows[row - 1][column - 1]]],
+    setValue: value => { migrationRows[row - 1][column - 1] = value; }
+  }),
+  getDataRange: () => ({ getValues: () => migrationRows })
+};
+const migrationResult = processHistoricalMarksheetMigration({ sheet: migrationSheet, lock: { tryLock: () => true, releaseLock: () => {} }, health: () => ({ ready: true, version: 'test-verifier-1' }) });
+const migrated = Object.fromEntries(migrationHeaders.map((header, index) => [header, migrationRows[1][index]]));
+assert.equal(migrationResult.processed, 1);
+assert.equal(migrated.DocumentPolicyVersion, MARKSHEET_POLICY_VERSION);
+assert.equal(migrated.DocumentStatus, 'Screening Pending');
+assert.equal(migrated.OfflineVerificationEmailSentAt, 'already-sent');
+assert.equal(JSON.parse(migrated.DocumentAuditLog).at(-1).previousStatus, 'Offline Verification Required');
+assert.equal(processHistoricalMarksheetMigration({ sheet: migrationSheet, lock: { tryLock: () => true, releaseLock: () => {} }, health: () => ({ ready: true }) }).processed, 0);
+assert.equal(migrationRows[2][migrationHeaders.indexOf('DocumentStatus')], 'Offline Verification Required', 'manual decisions must not be migrated');
+assert.equal(processHistoricalMarksheetMigration({ sheet: migrationSheet, lock: { tryLock: () => true, releaseLock: () => {} }, health: () => ({ ready: false }) }).success, false);
+
 const root = path.join(__dirname, '..');
 const registration = fs.readFileSync(path.join(root, 'register.html'), 'utf8');
 assert.equal((registration.match(/type="file"/g) || []).length, 1);
@@ -106,6 +157,9 @@ assert.match(admin, /Google\/OpenAI AI Provenance Check/);
 assert.match(admin, /Approve after document review/);
 assert.match(admin, /Technical details/);
 assert.match(admin, /Historical result — AI provenance not checked/);
+assert.match(admin, /Cryptographic C2PA verifier ready/);
+assert.match(admin, /getHistoricalMarksheetMigrationStatus/);
+assert.match(admin, /studentScreeningRefreshTimer/);
 assert.doesNotMatch(admin, /currentDocumentStatus === 'Offline Verification Required' \? 'Detected'/);
 assert.doesNotMatch(admin, /Official watermark check/);
 const student = fs.readFileSync(path.join(root, 'student.html'), 'utf8');
@@ -117,5 +171,7 @@ assert.match(dataService, /DocumentAuditLog/);
 const verificationService = fs.readFileSync(path.join(root, 'backend', 'DocumentVerificationService.js'), 'utf8');
 assert.doesNotMatch(verificationService, /GEMINI_API_KEY|invokeGemini|synthId\s*:|digitalSignature\s*:/);
 assert.match(verificationService, /GOOGLE_OPENAI_C2PA_AI_DETECTED/);
+assert.match(verificationService, /processHistoricalMarksheetMigration/);
+assert.match(verificationService, /X-Verifier-Signature/);
 
 console.log('Google/OpenAI C2PA automatic approval tests passed.');

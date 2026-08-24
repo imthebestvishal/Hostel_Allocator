@@ -5,15 +5,26 @@
   "scripts": {
     "start": "node scripts/devServer.js",
     "start:static": "npx serve .",
-    "test": "npm run test:apps-script-bundle && npm run test:document-verification && npm run test:local-verification-server && npm run test:batch-allocation && npm run test:performance",
+    "test": "npm run test:apps-script-bundle && npm run test:document-verification && npm run test:verifier-service && npm run test:vercel-verifier && npm run test:local-verification-server && npm run test:batch-allocation && npm run test:performance",
     "test:apps-script-bundle": "node scripts/testAppsScriptBundle.js",
     "test:document-verification": "node scripts/testDocumentVerification.js",
+    "test:verifier-service": "npm --prefix verifier test",
+    "test:vercel-verifier": "node scripts/testVercelVerifier.js",
     "test:local-verification-server": "node scripts/testLocalVerificationServer.js",
     "test:batch-allocation": "node scripts/testBatchAllocation.js",
     "test:performance": "node scripts/testPerformance.js",
     "load-test:allocation": "node scripts/runAllocationLoadTest.js"
   },
+  "engines": {
+    "node": ">=22"
+  },
   "devDependencies": {
     "serve": "^14.2.0"
+  },
+  "dependencies": {
+    "@contentauth/c2pa-node": "0.9.1"
+  },
+  "allowScripts": {
+    "@contentauth/c2pa-node@0.9.1": true
   }
 }

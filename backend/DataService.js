@@ -68,6 +68,8 @@ const STUDENT_DOCUMENT_COLUMNS = [
   'MarksheetC2paSigner',
   'MarksheetC2paSigningTime',
   'MarksheetC2paVerifierVersion',
+  'MarksheetC2paAiSourceType',
+  'MarksheetC2paValidationErrors',
   'MarksheetApprovalSource',
   'MarksheetDigitalSignatureStatus',
   'MarksheetSynthIdStatus',
@@ -891,8 +893,10 @@ function getDashboardData(params) {
 
 function adminLogin(data) {
   const settings = getSheetData('Settings');
-  const pwSetting = settings.find(s => s.Key === 'ADMIN_PASSWORD');
-  if (pwSetting && pwSetting.Value === data.password) {
+  const pwSetting = settings.find(s => String(s.Key || '').trim() === 'ADMIN_PASSWORD');
+  const storedPassword = pwSetting ? String(pwSetting.Value ?? '').trim() : '';
+  const submittedPassword = String(data && data.password != null ? data.password : '').trim();
+  if (storedPassword && storedPassword === submittedPassword) {
     return { success: true };
   }
   return { success: false };

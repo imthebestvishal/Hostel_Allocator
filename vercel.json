@@ -1,4 +1,9 @@
 {
   "cleanUrls": true,
-  "trailingSlash": false
+  "trailingSlash": false,
+  "functions": {
+    "api/c2pa-verify.js": {
+      "maxDuration": 60
+    }
+  }
 }

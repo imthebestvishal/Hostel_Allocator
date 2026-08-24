@@ -131,6 +131,10 @@ function testBackendPagination(root) {
   const detail = sandbox.getAdminStudentDetail({ enrollmentNo: students[0].EnrollmentNo, force: true });
   assert.equal(detail.MarksheetMetadataSummary.length, 5000, 'technical data should remain available through detail lookup');
 
+  sandbox.getSheetData = () => [{ Key: 'ADMIN_PASSWORD', Value: 12345678 }];
+  assert.equal(sandbox.adminLogin({ password: '12345678' }).success, true, 'numeric Sheet passwords must match the form string');
+  assert.equal(sandbox.adminLogin({ password: 'wrong' }).success, false, 'incorrect passwords must remain rejected');
+
   const start = performance.now();
   for (let index = 0; index < 100; index++) sandbox.getAdminStudentsPage({ page: 1, pageSize: 50 });
   assert.ok(performance.now() - start < 300, 'cached page reads should complete within 300 ms locally');
@@ -146,6 +150,7 @@ async function main() {
   assert.match(admin, /getAdminAllocationsPage/);
   assert.match(admin, /students\.slice\(0, 50\)\.map/);
   assert.match(admin, /requestIdleCallback/);
+  assert.match(admin, /loadVerificationOperationsStatus/);
   assert.match(admin, /x: \{ stacked: true/);
   assert.match(admin, /y: \{ stacked: true/);
   assert.doesNotMatch(admin, /label: 'Capacity', data:/);

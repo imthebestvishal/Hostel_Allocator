@@ -859,6 +859,21 @@
             text-align: center;
         }
 
+        .verifier-ops-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 14px 16px;
+            margin-bottom: 16px;
+            border: 1px solid var(--c-border);
+            border-radius: 8px;
+            background: #fff;
+        }
+
+        .verifier-ops-meta { color: var(--c-muted); font-size: .82rem; margin-top: 4px; }
+        .verifier-ops-counts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
         .data-toolbar-meta { display:flex; align-items:center; gap:10px; color:var(--c-muted); font-size:.78rem; }
         .pagination-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 4px 0; color:var(--c-muted); font-size:.82rem; }
         .pagination-actions { display:flex; align-items:center; gap:8px; }
@@ -1147,6 +1162,14 @@
                     </select>
                     <button class="btn-primary" onclick="sendBulkDiscrepancyEmails()">Send Discrepancy Emails (Unallotted)</button>
                 </div>
+            </div>
+
+            <div class="verifier-ops-card" id="verifierOperationsCard" aria-live="polite">
+                <div>
+                    <strong id="verifierOperationsTitle">Checking C2PA verifier…</strong>
+                    <div class="verifier-ops-meta" id="verifierOperationsMeta">Loading migration status.</div>
+                </div>
+                <div class="verifier-ops-counts" id="verifierOperationsCounts"></div>
             </div>
             
             <div class="table-container">
@@ -1455,6 +1478,7 @@
                 });
 
                 // Fetch data for the section
+                if (target !== 'students') clearTimeout(studentScreeningRefreshTimer);
                 loadSectionData(target);
             });
         });
@@ -1470,6 +1494,8 @@
         let roomOccupancyFilter = 'all';
         let roomFloorFilters = { boys: 'all', girls: 'all' };
         let studentSearchTimer = null;
+        let studentScreeningRefreshTimer = null;
+        let migrationWorkPending = false;
         const studentPageState = { page: 1, pageSize: 50, total: 0, totalPages: 1, requestId: 0, generatedAt: '' };
         const allocationPageState = { page: 1, pageSize: 50, total: 0, totalPages: 1, requestId: 0, generatedAt: '' };
 
@@ -1489,7 +1515,7 @@
             button.textContent = 'Checking...';
             try {
                 const res = await HostelAPI.adminLogin({ password });
-                if (!res || !res.success) throw new Error('Invalid admin password.');
+                if (!res || !res.success) throw new Error((res && res.error) || 'Invalid admin password.');
                 sessionStorage.setItem(ADMIN_SESSION_KEY, 'true');
                 setAdminLocked(false);
                 showAdminToast('Admin login successful.', 'success');
@@ -1514,7 +1540,7 @@
                 if (target === 'dashboard') {
                     await initDashboard();
                 } else if (target === 'students') {
-                    await loadStudentsPage();
+                    await Promise.all([loadStudentsPage(), loadVerificationOperationsStatus()]);
                 } else if (target === 'rooms') {
                     document.getElementById('bh-rooms').innerHTML = '<div class="loader"></div>';
                     document.getElementById('gh-rooms').innerHTML = '<div class="loader"></div>';
@@ -1650,7 +1676,7 @@
             
             try {
                 const auth = await HostelAPI.adminLogin({ password }, { loading: false });
-                if (!auth || !auth.success) throw new Error('Invalid admin password.');
+                if (!auth || !auth.success) throw new Error((auth && auth.error) || 'Invalid admin password.');
                 if (runBtn) runBtn.textContent = 'Running...';
                 const res = await HostelAPI.runAllocation();
                 if (res && res.success === false) throw new Error(res.message || res.error || 'Allocation failed.');
@@ -1901,6 +1927,40 @@
             Object.assign(studentPageState, { page: result?.page || 1, total: result?.total || 0, totalPages: result?.totalPages || 1, generatedAt: result?.generatedAt || '' });
             renderStudents(currentStudentsData);
             renderPagination('studentsPagination', studentPageState, 'changeStudentPage');
+            scheduleStudentScreeningRefresh();
+        }
+
+        function scheduleStudentScreeningRefresh() {
+            clearTimeout(studentScreeningRefreshTimer);
+            const studentsSection = document.getElementById('students');
+            const hasPending = currentStudentsData.some(student => String(getStudentValue(student, 'DocumentStatus') || '') === 'Screening Pending');
+            if (!studentsSection?.classList.contains('active') || (!hasPending && !migrationWorkPending)) return;
+            studentScreeningRefreshTimer = setTimeout(async () => {
+                await Promise.all([loadStudentsPage({ force: true, background: true }), loadVerificationOperationsStatus({ force: true, background: true })]);
+            }, 15000);
+        }
+
+        async function loadVerificationOperationsStatus(options = {}) {
+            const title = document.getElementById('verifierOperationsTitle');
+            const meta = document.getElementById('verifierOperationsMeta');
+            const counts = document.getElementById('verifierOperationsCounts');
+            if (!title || !meta || !counts) return;
+            try {
+                const [health, migration] = await Promise.all([
+                    HostelAPI.getProvenanceVerifierHealth(options),
+                    HostelAPI.getHistoricalMarksheetMigrationStatus(options)
+                ]);
+                title.textContent = health?.ready ? 'Cryptographic C2PA verifier ready' : 'C2PA verifier unavailable';
+                meta.textContent = `${health?.message || 'No verifier health details are available.'}${health?.version ? ` Version: ${health.version}.` : ''}`;
+                counts.innerHTML = `<span class="status-badge ${health?.ready ? 'status-verified' : 'status-discrepancy'}">${health?.ready ? 'Ready' : 'Unavailable'}</span><span class="status-badge status-pending">${Number(migration?.eligible || 0)} awaiting migration</span><span class="status-badge status-pending">${Number(migration?.screeningPending || 0)} screening pending</span>`;
+                migrationWorkPending = Number(migration?.eligible || 0) > 0 || Number(migration?.screeningPending || 0) > 0;
+                scheduleStudentScreeningRefresh();
+            } catch (error) {
+                migrationWorkPending = false;
+                title.textContent = 'Verifier status unavailable';
+                meta.textContent = error.message || 'Could not load verifier status.';
+                counts.innerHTML = '<span class="status-badge status-discrepancy">Check failed</span>';
+            }
         }
 
         function changeStudentPage(page) {
@@ -2280,6 +2340,9 @@
                 const c2pa = getStudentValue(currentDocumentStudent, 'MarksheetC2paStatus') || 'Not checked';
                 const c2paProvider = getStudentValue(currentDocumentStudent, 'MarksheetC2paProvider') || '-';
                 const verifierVersion = getStudentValue(currentDocumentStudent, 'MarksheetC2paVerifierVersion') || '-';
+                const lastScreeningError = getStudentValue(currentDocumentStudent, 'MarksheetVerificationLastError') || '-';
+                const aiSourceType = getStudentValue(currentDocumentStudent, 'MarksheetC2paAiSourceType') || '-';
+                const c2paValidationErrors = parseStoredStringList(getStudentValue(currentDocumentStudent, 'MarksheetC2paValidationErrors'));
                 const c2paIssuer = getStudentValue(currentDocumentStudent, 'MarksheetC2paIssuer') || '-';
                 const c2paSigner = getStudentValue(currentDocumentStudent, 'MarksheetC2paSigner') || c2paIssuer;
                 const metadataFindings = parseStoredStringList(getStudentValue(currentDocumentStudent, 'MarksheetMetadataFindings'));
@@ -2317,6 +2380,9 @@
                                 <div><strong>C2PA status</strong>${escapeHtml(c2pa)}</div>
                                 <div><strong>C2PA signer</strong>${escapeHtml(c2paSigner)}</div>
                                 <div><strong>C2PA verifier</strong>${escapeHtml(verifierVersion)}</div>
+                                <div><strong>AI source type</strong>${escapeHtml(aiSourceType)}</div>
+                                <div><strong>C2PA validation</strong>${escapeHtml(c2paValidationErrors.join('; ') || 'No validation errors')}</div>
+                                <div><strong>Last screening error</strong>${escapeHtml(lastScreeningError)}</div>
                                 <div><strong>C2PA provider</strong>${escapeHtml(c2paProvider)}</div>
                                 <div><strong>Approval source</strong>${escapeHtml(approvalSource)}</div>
                             </div>

@@ -10,6 +10,7 @@ tmp/
 test/fixtures/private/
 .env
 .env.local
+node_modules/
 
 # IDE / Editor files
 .vscode/

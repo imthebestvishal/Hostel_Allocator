@@ -31,6 +31,8 @@ function doGet(e) {
       case 'sendLetters':     result = sendAllotmentLetters(); invalidatePortalCaches(['allocations']); break;
       case 'reseedRooms':     result = resetAndSeedRooms(); invalidatePortalCaches(['dashboard', 'rooms']); break;
       case 'getSettingsPublic': result = getSettingsPublic(e.parameter); break;
+      case 'getProvenanceVerifierHealth': result = getProvenanceVerifierHealth(); break;
+      case 'getHistoricalMarksheetMigrationStatus': result = getHistoricalMarksheetMigrationStatus(); break;
       default: result = { status: 'ok', message: 'GGSIPU Hostel Allocator API', version: '1.0' };
     }
     return buildResponse(result);
@@ -61,6 +63,7 @@ function doPost(e) {
       case 'sendDiscrepancyEmails': result = sendDiscrepancyEmails(body.data); break;
       case 'resolveGrievance':  result = resolveGrievance(body.data); break;
       case 'adminLogin':        result = adminLogin(body.data); break;
+      case 'downloadMarksheetForVerifier': result = downloadMarksheetForVerifier(body.data); break;
       case 'updateSetting':     result = updateSetting(body.data); break;
       case 'resetVerifiedTestStudentsForReallocation': result = resetVerifiedTestStudentsForReallocation(); break;
       default: result = { error: 'Unknown action' };

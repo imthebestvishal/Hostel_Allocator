@@ -1,4 +1,4 @@
-const SHEET_ID = '1b4L0xvbXijBS6iDhxJ4ir86bsxWE7t6-7ZFppLZqjQI';
+const HOSTEL_SPREADSHEET_ID = '1b4L0xvbXijBS6iDhxJ4ir86bsxWE7t6-7ZFppLZqjQI';
 
 let activeSpreadsheet = null;
 
@@ -7,7 +7,7 @@ function resetSpreadsheetContext() {
 }
 
 function getSpreadsheet() {
-  if (!activeSpreadsheet) activeSpreadsheet = SpreadsheetApp.openById(SHEET_ID);
+  if (!activeSpreadsheet) activeSpreadsheet = SpreadsheetApp.openById(HOSTEL_SPREADSHEET_ID);
   return activeSpreadsheet;
 }
 
@@ -16,7 +16,7 @@ function getSheet(name) {
 }
 
 function setupDatabase() {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const ss = SpreadsheetApp.openById(HOSTEL_SPREADSHEET_ID);
   
   const sheetsConfig = [
     {
@@ -98,7 +98,7 @@ function seedData(ss) {
 }
 
 function resetAndSeedRooms() {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const ss = SpreadsheetApp.openById(HOSTEL_SPREADSHEET_ID);
   let roomsSheet = ss.getSheetByName('Rooms');
   if (!roomsSheet) {
     roomsSheet = ss.insertSheet('Rooms');

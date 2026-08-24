@@ -13,6 +13,8 @@ const API_LOADING_LABELS = {
   getGrievances: 'Loading grievances',
   getNotices: 'Loading notices',
   getSettingsPublic: 'Loading settings',
+  getProvenanceVerifierHealth: 'Checking verifier',
+  getHistoricalMarksheetMigrationStatus: 'Checking migration',
   getAllocationPreview: 'Checking allocation preview',
   runAllocation: 'Running allocation',
   sendLetters: 'Sending allotment letters',
@@ -421,6 +423,8 @@ const API_READ_CACHE_TTL = {
   getGrievances: 15000,
   getNotices: 60000,
   getSettingsPublic: 60000,
+  getProvenanceVerifierHealth: 15000,
+  getHistoricalMarksheetMigrationStatus: 15000,
   getStudentStatus: 15000
 };
 const API_SESSION_CACHE_ACTIONS = new Set(['getDashboard', 'getNotices', 'getSettingsPublic']);
@@ -654,10 +658,10 @@ function localDecideMarksheetVerification(screening) {
   if (result.verifierConfigured !== true || c2paStatus === 'Unsupported') inconclusive.push('C2PA_VERIFIER_UNAVAILABLE');
   if (result.verifierConfigured === true && c2paStatus !== 'Unsupported') explanations.push('C2PA_VERIFICATION_COMPLETED');
   if (c2paStatus === 'Absent') explanations.push('C2PA_NOT_PRESENT', 'NO_GOOGLE_OPENAI_C2PA_FOUND');
-  if (c2paStatus === 'Valid' && !c2paProvider) explanations.push('NO_GOOGLE_OPENAI_C2PA_FOUND');
+  if (c2paStatus === 'Valid' && (!c2paProvider || c2pa.aiGenerated !== true)) explanations.push('NO_GOOGLE_OPENAI_C2PA_FOUND', 'NO_SUPPORTED_C2PA_AI_CLAIM');
   if (['Invalid', 'Untrusted'].includes(c2paStatus) && !c2paProvider) inconclusive.push('UNSUPPORTED_C2PA_PROVIDER');
   if (['Invalid', 'Untrusted'].includes(c2paStatus) && c2paProvider) reasons.push('GOOGLE_OPENAI_C2PA_INVALID');
-  if (c2paStatus === 'Valid' && c2paProvider) reasons.push('GOOGLE_OPENAI_C2PA_AI_DETECTED');
+  if (c2paStatus === 'Valid' && c2paProvider && c2pa.aiGenerated === true) reasons.push('GOOGLE_OPENAI_C2PA_AI_DETECTED');
   const reasonCodes = reasons.filter((reason, index) => reasons.indexOf(reason) === index);
   const inconclusiveCodes = inconclusive.filter((reason, index) => inconclusive.indexOf(reason) === index);
   const explanationCodes = explanations.concat(reasonCodes, inconclusiveCodes).filter((code, index, values) => values.indexOf(code) === index);
@@ -783,6 +787,8 @@ async function runLocalMarksheetScreening(enrollmentNo, suppliedResult) {
   student.MarksheetC2paSigner = screening.c2pa?.signer || screening.c2pa?.issuer || '';
   student.MarksheetC2paSigningTime = screening.c2pa?.signingTime || '';
   student.MarksheetC2paVerifierVersion = screening.c2pa?.verifierVersion || screening.verifierVersion || '';
+  student.MarksheetC2paAiSourceType = screening.c2pa?.aiSourceType || '';
+  student.MarksheetC2paValidationErrors = JSON.stringify(screening.c2pa?.validationErrors || []);
   student.MarksheetApprovalSource = decision.approvalSource;
   student.MarksheetScreeningAttempts = Number(student.MarksheetScreeningAttempts || 0) + 1;
   if (decision.status === 'Verified') {
@@ -892,6 +898,15 @@ function handleLocalFallback(action, data, params) {
         registrationCloseDate: LOCAL_MOCK_STORE.settings.REGISTRATION_CLOSE_DATE || '',
         hostelOfficeContact: LOCAL_MOCK_STORE.settings.HOSTEL_OFFICE_CONTACT || 'Contact the Warden Office for official hostel support.',
         messFeeNote: LOCAL_MOCK_STORE.settings.MESS_FEE_NOTE || 'Mess and hostel fee details will be announced through official notices.'
+      };
+    case 'getProvenanceVerifierHealth':
+      return { ready: true, version: 'local-test-verifier', dependency: 'available', checkedAt: new Date().toISOString(), message: 'Local verifier is ready.' };
+    case 'getHistoricalMarksheetMigrationStatus':
+      return {
+        eligible: students.filter(student => String(student.DocumentPolicyVersion || '') !== 'google-openai-c2pa-auto-verify-v2' && (String(student.DocumentStatus || '') === 'Offline Verification Required' || String(student.DocumentStatus || '').includes('Inconclusive')) && student.MarksheetFileId && !student.DocumentManualReviewedAt && !student.DocumentManualEvidenceSource).length,
+        screeningPending: students.filter(student => String(student.DocumentPolicyVersion || '') === 'google-openai-c2pa-auto-verify-v2' && String(student.DocumentStatus || '') === 'Screening Pending').length,
+        policyVersion: 'google-openai-c2pa-auto-verify-v2',
+        generatedAt: new Date().toISOString()
       };
     case 'updateSetting': {
       const key = data.Key || data.key;
@@ -1377,6 +1392,8 @@ window.HostelAPI = {
   getGrievances:    ()         => gasRequest('getGrievances',    'GET'),
   getNotices:       (options = {}) => gasRequest('getNotices',       'GET', null, null, options),
   getSettingsPublic: ()        => gasRequest('getSettingsPublic', 'GET'),
+  getProvenanceVerifierHealth: (options = {}) => gasRequest('getProvenanceVerifierHealth', 'GET', null, null, options),
+  getHistoricalMarksheetMigrationStatus: (options = {}) => gasRequest('getHistoricalMarksheetMigrationStatus', 'GET', null, null, options),
   getAllocationPreview: ()     => gasRequest('getAllocationPreview', 'GET', null, null, { loading: false }),
   runAllocation:    ()         => gasRequest('runAllocation',    'GET', null, null, { loading: false }),
   sendLetters:      ()         => gasRequest('sendLetters',      'GET'),
