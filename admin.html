@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard | GGSIPU Hostel Allocator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --c-primary: hsl(228, 52%, 29%);
@@ -852,6 +853,11 @@
             text-align: center;
         }
 
+        .data-toolbar-meta { display:flex; align-items:center; gap:10px; color:var(--c-muted); font-size:.78rem; }
+        .pagination-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 4px 0; color:var(--c-muted); font-size:.82rem; }
+        .pagination-actions { display:flex; align-items:center; gap:8px; }
+        .pagination-actions button:disabled { opacity:.45; cursor:not-allowed; }
+
         .ai-check-card {
             border: 1px solid #dbe3ee;
             border-left: 5px solid #64748b;
@@ -1007,7 +1013,11 @@
         <section id="dashboard" class="section active">
             <div class="page-header">
                 <h1 class="page-title">Dashboard Overview</h1>
-                <button class="btn-accent" onclick="openModal()">Run Allocation Engine</button>
+                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                    <span class="data-toolbar-meta" id="dashboardUpdatedAt"></span>
+                    <button class="btn-outline" type="button" onclick="initDashboard({force:true})">Refresh</button>
+                    <button class="btn-accent" onclick="openModal()">Run Allocation Engine</button>
+                </div>
             </div>
             
             <div class="stats-grid">
@@ -1066,7 +1076,7 @@
             <div class="page-header">
                 <h1 class="page-title">Allocations</h1>
                 <div style="display:flex; gap:12px;">
-                    <button class="btn-outline" onclick="exportCSV(currentData, 'allocations.csv')">Export CSV</button>
+                    <button class="btn-outline" onclick="exportAllAllocations()">Export CSV</button>
                     <button class="btn-primary" onclick="sendLetters()">Generate Allotment Letters</button>
                 </div>
             </div>
@@ -1112,6 +1122,7 @@
                     </tbody>
                 </table>
             </div>
+            <div class="pagination-bar" id="allocationsPagination"></div>
         </section>
 
         <!-- Students Section -->
@@ -1154,6 +1165,7 @@
                     </tbody>
                 </table>
             </div>
+            <div class="pagination-bar" id="studentsPagination"></div>
         </section>
 
         <!-- Rooms Section -->
@@ -1451,6 +1463,9 @@
         let currentRoomsData = [];
         let roomOccupancyFilter = 'all';
         let roomFloorFilters = { boys: 'all', girls: 'all' };
+        let studentSearchTimer = null;
+        const studentPageState = { page: 1, pageSize: 50, total: 0, totalPages: 1, requestId: 0, generatedAt: '' };
+        const allocationPageState = { page: 1, pageSize: 50, total: 0, totalPages: 1, requestId: 0, generatedAt: '' };
 
         function isAdminLoggedIn() {
             return sessionStorage.getItem(ADMIN_SESSION_KEY) === 'true';
@@ -1493,33 +1508,16 @@
                 if (target === 'dashboard') {
                     await initDashboard();
                 } else if (target === 'students') {
-                    document.getElementById('students-tbody').innerHTML = '<tr><td colspan="11" style="text-align:center"><div class="loader"></div></td></tr>';
-                    const data = await HostelAPI.getStudents();
-                    currentData = data;
-                    currentStudentsData = data;
-                    renderStudents(data);
+                    await loadStudentsPage();
                 } else if (target === 'rooms') {
                     document.getElementById('bh-rooms').innerHTML = '<div class="loader"></div>';
                     document.getElementById('gh-rooms').innerHTML = '<div class="loader"></div>';
-                    const [data, allocations] = await Promise.all([
-                        HostelAPI.getRooms(),
-                        HostelAPI.getAllocations()
-                    ]);
-                    currentAllocationsData = Array.isArray(allocations) ? allocations : [];
-                    currentAllocationOccupancyMap = buildAllocationOccupancyMap(currentAllocationsData);
-                    currentData = data;
-                    renderRooms(data);
+                    const overview = await HostelAPI.getAdminRoomsOverview();
+                    currentAllocationOccupancyMap = overview && overview.occupancy || {};
+                    currentData = overview && overview.rooms || [];
+                    renderRooms(currentData);
                 } else if (target === 'allocations') {
-                    document.getElementById('allocations-tbody').innerHTML = '<tr><td colspan="9" style="text-align:center"><div class="loader"></div></td></tr>';
-                    const [data, students] = await Promise.all([
-                        HostelAPI.getAllocations(),
-                        currentStudentsData && currentStudentsData.length ? Promise.resolve(currentStudentsData) : HostelAPI.getStudents()
-                    ]);
-                    currentStudentsData = students || [];
-                    currentAllocationsData = Array.isArray(data) ? data : [];
-                    currentAllocationOccupancyMap = buildAllocationOccupancyMap(currentAllocationsData);
-                    currentData = data;
-                    renderAllocations(data);
+                    await loadAllocationsPage();
                 } else if (target === 'grievances') {
                     document.getElementById('grievances-tbody').innerHTML = '<tr><td colspan="6" style="text-align:center"><div class="loader"></div></td></tr>';
                     const data = await HostelAPI.getGrievances();
@@ -1683,12 +1681,48 @@
 
         // Charts Init
         let barChart, doughnutChart;
-        
-        async function initDashboard() {
+        let chartLibraryPromise = null;
+
+        function ensureChartLibrary() {
+            if (window.Chart) return Promise.resolve(window.Chart);
+            if (!chartLibraryPromise) {
+                chartLibraryPromise = new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = 'https://cdn.jsdelivr.net/npm/chart.js';
+                    script.async = true;
+                    script.onload = () => resolve(window.Chart);
+                    script.onerror = () => reject(new Error('Chart library could not be loaded.'));
+                    document.head.appendChild(script);
+                });
+            }
+            return chartLibraryPromise;
+        }
+
+        function prefetchAdminTabs() {
+            const prefetch = () => {
+                HostelAPI.getAdminStudentsPage({ page: 1, pageSize: 50 }, { background: true }).catch(() => {});
+                HostelAPI.getAdminAllocationsPage({ page: 1, pageSize: 50 }, { background: true }).catch(() => {});
+            };
+            if ('requestIdleCallback' in window) requestIdleCallback(prefetch, { timeout: 1500 });
+            else setTimeout(prefetch, 400);
+        }
+
+        async function initDashboard(options = {}) {
+            const cached = options.force ? null : HostelAPI.peekCache('getDashboard', {}, true);
+            if (cached?.data) await renderDashboardData(cached.data, true);
             try {
-                const data = await HostelAPI.getDashboard();
+                const data = await HostelAPI.getDashboard({ force: Boolean(options.force), background: Boolean(cached) });
                 if (!data) return;
-                
+                await renderDashboardData(data, false);
+                prefetchAdminTabs();
+            } catch (err) {
+                console.error('initDashboard Error:', err);
+                if (!cached) showAdminToast('Dashboard data could not be refreshed. Please try again.', 'error');
+            }
+        }
+
+        async function renderDashboardData(data, fromCache) {
+                try { await ensureChartLibrary(); } catch (error) { console.warn(error); }
                 // Calculate breakdown metrics
                 const totalApplied = data.totalApplied || 0;
                 const allocatedBoys = data.allocatedBoys || 0;
@@ -1706,36 +1740,39 @@
                 const girlStats = data.girlStats || { total: 176, occupied: 0, vacant: 176 };
 
                 // Render Bar Chart
-                if (barChart) barChart.destroy();
                 const ctxBar = document.getElementById('barChart')?.getContext('2d');
-                if (ctxBar) {
+                const barData = {
+                    labels: ['Boys Hostel (264 Seats)', 'Girls Hostel (176 Seats)'],
+                    datasets: [
+                        { label: 'Capacity', data: [boyStats.total || boyStats.capacity || 264, girlStats.total || girlStats.capacity || 176], backgroundColor: '#cbd5e1' },
+                        { label: 'Occupied', data: [boyStats.occupied || 0, girlStats.occupied || 0], backgroundColor: 'hsl(228, 52%, 29%)' },
+                        { label: 'Vacant', data: [boyStats.vacant || 264, girlStats.vacant || 176], backgroundColor: 'hsl(41, 100%, 47%)' }
+                    ]
+                };
+                if (barChart) {
+                    barChart.data = barData;
+                    barChart.update('none');
+                } else if (ctxBar && window.Chart) {
                     barChart = new Chart(ctxBar, {
                         type: 'bar',
-                        data: {
-                            labels: ['Boys Hostel (264 Seats)', 'Girls Hostel (176 Seats)'],
-                            datasets: [
-                                { label: 'Capacity', data: [boyStats.total || boyStats.capacity || 264, girlStats.total || girlStats.capacity || 176], backgroundColor: '#cbd5e1' },
-                                { label: 'Occupied', data: [boyStats.occupied || 0, girlStats.occupied || 0], backgroundColor: 'hsl(228, 52%, 29%)' },
-                                { label: 'Vacant', data: [boyStats.vacant || 264, girlStats.vacant || 176], backgroundColor: 'hsl(41, 100%, 47%)' }
-                            ]
-                        },
+                        data: barData,
                         options: { responsive: true, scales: { y: { beginAtZero: true } } }
                     });
                 }
 
                 // Render Doughnut Chart
-                if (doughnutChart) doughnutChart.destroy();
                 const ctxDoughnut = document.getElementById('doughnutChart')?.getContext('2d');
-                if (ctxDoughnut) {
+                const doughnutData = {
+                    labels: ['Priority I (PWD)', 'Priority II (Outside Delhi)', 'Priority III (Delhi Transferred)', 'Priority IV (Delhi Distance)', 'Priority V (Waitlist)'],
+                    datasets: [{ data: data.priorityBreakdown || [0, 0, 0, 0, 0], backgroundColor: ['#d97706', '#2563eb', '#7c3aed', '#059669', '#64748b'] }]
+                };
+                if (doughnutChart) {
+                    doughnutChart.data = doughnutData;
+                    doughnutChart.update('none');
+                } else if (ctxDoughnut && window.Chart) {
                     doughnutChart = new Chart(ctxDoughnut, {
                         type: 'doughnut',
-                        data: {
-                            labels: ['Priority I (PWD)', 'Priority II (Outside Delhi)', 'Priority III (Delhi Transferred)', 'Priority IV (Delhi Distance)', 'Priority V (Waitlist)'],
-                            datasets: [{
-                                data: data.priorityBreakdown || [0, 0, 0, 0, 0],
-                                backgroundColor: ['#d97706', '#2563eb', '#7c3aed', '#059669', '#64748b']
-                            }]
-                        },
+                        data: doughnutData,
                         options: { responsive: true, plugins: { legend: { position: 'right' } } }
                     });
                 }
@@ -1745,62 +1782,95 @@
                 if (recentBody) {
                     recentBody.innerHTML = '';
                     if (data.recentAllocations && data.recentAllocations.length > 0) {
-                        data.recentAllocations.forEach(a => {
+                        recentBody.innerHTML = data.recentAllocations.map(a => {
                             const alloc = normalizeAllocationRecord(a);
-                            recentBody.innerHTML += `<tr>
+                            return `<tr>
                                 <td>${escapeHtml(alloc.EnrollmentNo || '-')}</td>
                                 <td>${escapeHtml(alloc.StudentName || '-')}</td>
                                 <td>${escapeHtml(alloc.Gender || '-')}</td>
                                 <td>${escapeHtml(alloc.RoomNumber || '-')}</td>
                             </tr>`;
-                        });
+                        }).join('');
                     } else {
                         recentBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: #888;">No recent allocations yet. Click "Run Allocation Engine" to process pending applications.</td></tr>';
                     }
                 }
-            } catch (err) {
-                console.error('initDashboard Error:', err);
-            }
+                const updated = document.getElementById('dashboardUpdatedAt');
+                if (updated) updated.textContent = `${fromCache ? 'Cached · ' : ''}Updated ${new Date(data.generatedAt || Date.now()).toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' })}`;
+        }
+
+        function renderPagination(containerId, state, changeHandler) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            const start = state.total ? (state.page - 1) * state.pageSize + 1 : 0;
+            const end = Math.min(state.total, state.page * state.pageSize);
+            container.innerHTML = `
+                <span>${start}-${end} of ${state.total}${state.generatedAt ? ` · Updated ${escapeHtml(new Date(state.generatedAt).toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' }))}` : ''}</span>
+                <div class="pagination-actions">
+                    <button class="btn-outline" type="button" ${state.page <= 1 ? 'disabled' : ''} onclick="${changeHandler}(${state.page - 1})">Previous</button>
+                    <span>Page ${state.page} of ${state.totalPages}</span>
+                    <button class="btn-outline" type="button" ${state.page >= state.totalPages ? 'disabled' : ''} onclick="${changeHandler}(${state.page + 1})">Next</button>
+                </div>`;
+        }
+
+        async function loadAllocationsPage(options = {}) {
+            const requestId = ++allocationPageState.requestId;
+            if (!currentAllocationsData.length) document.getElementById('allocations-tbody').innerHTML = '<tr><td colspan="9" style="text-align:center"><div class="loader"></div></td></tr>';
+            const params = {
+                page: allocationPageState.page,
+                pageSize: allocationPageState.pageSize,
+                gender: document.getElementById('alloc-filter-gender')?.value || '',
+                status: document.getElementById('alloc-filter-status')?.value || '',
+                priority: document.getElementById('alloc-filter-priority')?.value || ''
+            };
+            const result = await HostelAPI.getAdminAllocationsPage(params, options);
+            if (requestId !== allocationPageState.requestId) return;
+            currentAllocationsData = Array.isArray(result?.items) ? result.items : [];
+            currentData = currentAllocationsData;
+            Object.assign(allocationPageState, { page: result?.page || 1, total: result?.total || 0, totalPages: result?.totalPages || 1, generatedAt: result?.generatedAt || '' });
+            renderAllocations(currentAllocationsData);
+            renderPagination('allocationsPagination', allocationPageState, 'changeAllocationPage');
+        }
+
+        function changeAllocationPage(page) {
+            allocationPageState.page = Math.max(1, Math.min(allocationPageState.totalPages, Number(page) || 1));
+            loadAllocationsPage();
         }
 
         function applyAllocFilters() {
-            if (!currentData || !Array.isArray(currentData)) return;
-            
-            const genderFilter = (document.getElementById('alloc-filter-gender')?.value || '').toLowerCase();
-            const statusFilter = (document.getElementById('alloc-filter-status')?.value || '').toLowerCase();
-            const priorityFilter = document.getElementById('alloc-filter-priority')?.value || '';
-
-            const filtered = currentData.filter(a => {
-                const alloc = normalizeAllocationRecord(a);
-                const g = String(alloc.Gender || '').toLowerCase();
-                const s = String(alloc.Status || '').toLowerCase();
-                const p = String(alloc.Priority || '');
-
-                if (genderFilter && !g.includes(genderFilter)) return false;
-                if (statusFilter && !s.includes(statusFilter)) return false;
-                if (priorityFilter && p !== priorityFilter) return false;
-                return true;
-            });
-
-            renderAllocations(filtered);
+            allocationPageState.page = 1;
+            loadAllocationsPage();
         }
 
         function applyStudentFilters() {
-            const source = currentStudentsData && currentStudentsData.length ? currentStudentsData : currentData;
-            if (!source || !Array.isArray(source)) return;
-            const query = (document.getElementById('students-search-input')?.value || '').toLowerCase().trim();
-            const docFilter = (document.getElementById('students-doc-filter')?.value || '').toLowerCase();
+            clearTimeout(studentSearchTimer);
+            studentSearchTimer = setTimeout(() => {
+                studentPageState.page = 1;
+                loadStudentsPage();
+            }, 250);
+        }
 
-            const filtered = source.filter(s => {
-                const name = String(getStudentValue(s, 'Name')).toLowerCase();
-                const enroll = String(getStudentValue(s, 'EnrollmentNo')).toLowerCase();
-                const docStatus = String(getStudentValue(s, 'DocumentStatus') || 'Pending').toLowerCase();
-                if (query && !name.includes(query) && !enroll.includes(query)) return false;
-                if (docFilter && docStatus !== docFilter) return false;
-                return true;
-            });
+        async function loadStudentsPage(options = {}) {
+            const requestId = ++studentPageState.requestId;
+            if (!currentStudentsData.length) document.getElementById('students-tbody').innerHTML = '<tr><td colspan="11" style="text-align:center"><div class="loader"></div></td></tr>';
+            const params = {
+                page: studentPageState.page,
+                pageSize: studentPageState.pageSize,
+                query: document.getElementById('students-search-input')?.value?.trim() || '',
+                documentStatus: document.getElementById('students-doc-filter')?.value || ''
+            };
+            const result = await HostelAPI.getAdminStudentsPage(params, options);
+            if (requestId !== studentPageState.requestId) return;
+            currentStudentsData = Array.isArray(result?.items) ? result.items : [];
+            currentData = currentStudentsData;
+            Object.assign(studentPageState, { page: result?.page || 1, total: result?.total || 0, totalPages: result?.totalPages || 1, generatedAt: result?.generatedAt || '' });
+            renderStudents(currentStudentsData);
+            renderPagination('studentsPagination', studentPageState, 'changeStudentPage');
+        }
 
-            renderStudents(filtered);
+        function changeStudentPage(page) {
+            studentPageState.page = Math.max(1, Math.min(studentPageState.totalPages, Number(page) || 1));
+            loadStudentsPage();
         }
 
         function getStudentValue(obj, keyName) {
@@ -1895,7 +1965,15 @@
                 BedNumber: getStudentValue(record, 'BedNumber'),
                 Status: getStudentValue(record, 'Status'),
                 LetterSent: getStudentValue(record, 'LetterSent'),
-                LetterSentAt: getStudentValue(record, 'LetterSentAt')
+                LetterSentAt: getStudentValue(record, 'LetterSentAt'),
+                Category: getStudentValue(record, 'Category'),
+                Priority: getStudentValue(record, 'Priority'),
+                Programme: getStudentValue(record, 'Programme'),
+                Branch: getStudentValue(record, 'Branch'),
+                DistanceKm: getStudentValue(record, 'DistanceKm'),
+                TwelfthMarks: getStudentValue(record, 'TwelfthMarks'),
+                Email: getStudentValue(record, 'Email'),
+                Phone: getStudentValue(record, 'Phone')
             };
 
             const hasDirectDetails = direct.EnrollmentNo || direct.StudentName || direct.RoomNumber || direct.HostelName;
@@ -2035,7 +2113,7 @@
                 return;
             }
             
-            students.forEach(s => {
+            stuBody.innerHTML = students.slice(0, 50).map(s => {
                 const enroll = getStudentValue(s, 'EnrollmentNo') || s.enrollmentNo || '-';
                 const name = getStudentValue(s, 'Name') || s.name || '-';
                 const gender = getStudentValue(s, 'Gender') || s.gender || '-';
@@ -2053,7 +2131,7 @@
                 const badgeClass = statusStr === 'allocated' ? 'status-allocated' : (statusStr === 'waitlisted' ? 'status-waitlisted' : 'status-pending');
                 const docBadgeClass = getDocumentBadgeClass(docStatus);
                 
-                stuBody.innerHTML += `<tr>
+                return `<tr>
                     <td>${escapeHtml(enroll)}</td>
                     <td>${escapeHtml(name)}</td>
                     <td>${escapeHtml(gender)}</td>
@@ -2071,7 +2149,7 @@
                         <button class="btn-outline" style="padding:4px 8px; font-size:0.8rem;" onclick="openDocumentReviewModal('${encodeURIComponent(enroll)}')">Review Docs</button>
                     </td>
                 </tr>`;
-            });
+            }).join('');
         }
 
         function getStudentDocumentDefinitions(student) {
@@ -2106,12 +2184,26 @@
             }
         }
 
-        function openDocumentReviewModal(encodedEnroll) {
+        async function openDocumentReviewModal(encodedEnroll) {
             const enroll = decodeURIComponent(encodedEnroll || '');
             const source = currentStudentsData && currentStudentsData.length ? currentStudentsData : currentData;
             currentDocumentStudent = source.find(s => String(getStudentValue(s, 'EnrollmentNo')).trim() === enroll);
             if (!currentDocumentStudent) {
                 showAdminToast('Student record not found.', 'error');
+                return;
+            }
+
+            document.getElementById('documentReviewModal').classList.add('active');
+            document.getElementById('docReviewStudentMeta').textContent = `Loading document details for ${enroll}…`;
+            document.getElementById('docAutomatedScreeningMeta').innerHTML = '<div class="app-skeleton-row"></div><div class="app-skeleton-row"></div>';
+            document.getElementById('docReviewList').innerHTML = '<div class="app-skeleton-row"></div>';
+            try {
+                const detail = await HostelAPI.getAdminStudentDetail({ enrollmentNo: enroll });
+                if (!detail || detail.error) throw new Error(detail?.error || 'Student details are unavailable.');
+                currentDocumentStudent = detail;
+            } catch (error) {
+                closeDocumentReviewModal();
+                showAdminToast(error.message || 'Unable to load document details.', 'error');
                 return;
             }
 
@@ -2764,14 +2856,14 @@
                 gBody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#888; padding:24px;">No grievances submitted yet.</td></tr>';
                 return;
             }
-            grievances.forEach(g => {
+            gBody.innerHTML = grievances.map(g => {
                 const ticketId = getStudentValue(g, 'TicketID') || '-';
                 const appId = getStudentValue(g, 'ApplicationID') || '-';
                 const date = getStudentValue(g, 'Date') || '-';
                 const subject = getStudentValue(g, 'Subject') || '-';
                 const status = getStudentValue(g, 'Status') || 'Open';
                 const b = status === 'Resolved' ? 'status-allocated' : 'status-pending';
-                gBody.innerHTML += `<tr>
+                return `<tr>
                     <td>${escapeHtml(ticketId)}</td><td>${escapeHtml(appId)}</td><td>${escapeHtml(date)}</td><td>${escapeHtml(subject)}</td>
                     <td><span class="status-badge ${b}">${escapeHtml(status)}</span></td>
                     <td>
@@ -2779,7 +2871,7 @@
                         ${status !== 'Resolved' ? `<button class="btn-primary" style="padding:4px 8px; font-size:0.8rem;" onclick="resolveGrievanceTicket('${encodeURIComponent(ticketId)}')">Resolve</button>` : ''}
                     </td>
                 </tr>`;
-            });
+            }).join('');
         }
 
         function viewGrievance(encodedTicketId) {
@@ -2928,8 +3020,17 @@
 
     // ── CSV Export ───────────────────────────────────────────
     function exportCSV(data, filename) {
-        HostelAPI.exportCSV(currentData, filename || 'export.csv');
+        HostelAPI.exportCSV(Array.isArray(data) ? data : currentData, filename || 'export.csv');
         showAdminToast(`✅ Export initiated!`, 'success');
+    }
+
+    async function exportAllAllocations() {
+        try {
+            const allocations = await HostelAPI.getAllocations();
+            exportCSV(Array.isArray(allocations) ? allocations : [], 'allocations.csv');
+        } catch (error) {
+            showAdminToast('Allocation export could not be loaded.', 'error');
+        }
     }
     
     // ── Send Letters ──────────────────────────────────────────

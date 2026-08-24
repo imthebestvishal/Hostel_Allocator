@@ -5,10 +5,11 @@
   "scripts": {
     "start": "node scripts/devServer.js",
     "start:static": "npx serve .",
-    "test": "npm run test:document-verification && npm run test:local-verification-server && npm run test:batch-allocation",
+    "test": "npm run test:document-verification && npm run test:local-verification-server && npm run test:batch-allocation && npm run test:performance",
     "test:document-verification": "node scripts/testDocumentVerification.js",
     "test:local-verification-server": "node scripts/testLocalVerificationServer.js",
     "test:batch-allocation": "node scripts/testBatchAllocation.js",
+    "test:performance": "node scripts/testPerformance.js",
     "load-test:allocation": "node scripts/runAllocationLoadTest.js"
   },
   "devDependencies": {

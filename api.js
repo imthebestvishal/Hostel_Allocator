@@ -165,7 +165,7 @@ function ensureAppLoading() {
     document.head.appendChild(style);
   }
 
-  function ensureElements() {
+  function ensureElements(includeOverlay = true) {
     injectStyles();
     if (!topBar) {
       topBar = document.createElement('div');
@@ -173,7 +173,7 @@ function ensureAppLoading() {
       topBar.setAttribute('aria-hidden', 'true');
       document.body.appendChild(topBar);
     }
-    if (!overlayEl) {
+    if (includeOverlay && !overlayEl) {
       if (APP_LOADING_LOTTIE_SRC && /\.(json|lottie)(\?|$)/i.test(APP_LOADING_LOTTIE_SRC) && !document.getElementById('dotlottie-player-script')) {
         const playerScript = document.createElement('script');
         playerScript.id = 'dotlottie-player-script';
@@ -267,12 +267,13 @@ function ensureAppLoading() {
   }
 
   function refreshTopBar() {
-    ensureElements();
     const activeLabels = Array.from(tasks.values()).filter(task => task.visible).map(task => task.label).filter(Boolean);
     const visible = activeLabels.length > 0;
+    const overlayVisible = Array.from(tasks.values()).some(task => task.visible && task.overlay);
+    ensureElements(overlayVisible);
     topBar.classList.toggle('active', visible);
-    overlayEl.classList.toggle('active', visible);
-    const labelEl = overlayEl.querySelector('[data-loading-status-text]');
+    if (overlayEl) overlayEl.classList.toggle('active', overlayVisible);
+    const labelEl = overlayEl && overlayEl.querySelector('[data-loading-status-text]');
     if (labelEl) labelEl.textContent = activeLabels[activeLabels.length - 1] || 'Loading';
   }
 
@@ -282,6 +283,7 @@ function ensureAppLoading() {
       const task = {
         label,
         visible: false,
+        overlay: options.overlay !== false,
         target: null,
         targetVariant: options.variant,
         timer: null
@@ -289,7 +291,7 @@ function ensureAppLoading() {
       activeCount += 1;
       task.timer = setTimeout(() => {
         task.visible = true;
-        if (activeCount > 0) ensureElements();
+        if (activeCount > 0) ensureElements(task.overlay);
         if (options.target) {
           task.target = startTarget(options.target, label, options.variant);
           if (task.target && options.variant !== 'button') task.target.classList.add('is-loading');
@@ -410,25 +412,104 @@ function localCalculateProbability(student) {
 }
 
 // ── Core request function ─────────────────────────────────────────────────
+const API_READ_CACHE_TTL = {
+  getDashboard: 15000,
+  getAdminStudentsPage: 15000,
+  getAdminStudentDetail: 15000,
+  getAdminAllocationsPage: 15000,
+  getAdminRoomsOverview: 15000,
+  getGrievances: 15000,
+  getNotices: 60000,
+  getSettingsPublic: 60000,
+  getStudentStatus: 15000
+};
+const API_SESSION_CACHE_ACTIONS = new Set(['getDashboard', 'getNotices', 'getSettingsPublic']);
+const API_MEMORY_CACHE = new Map();
+const API_INFLIGHT_REQUESTS = new Map();
+const API_SESSION_PREFIX = 'hostel_api_cache:';
+
+function stableRequestParams(params) {
+  const value = params || {};
+  return Object.keys(value).filter(key => key !== 'force').sort().map(key => `${encodeURIComponent(key)}=${encodeURIComponent(value[key] ?? '')}`).join('&');
+}
+
+function apiRequestCacheKey(action, params) {
+  return `${action}?${stableRequestParams(params)}`;
+}
+
+function readApiCache(action, params, allowExpired = false) {
+  const key = apiRequestCacheKey(action, params);
+  let entry = API_MEMORY_CACHE.get(key) || null;
+  if (!entry && API_SESSION_CACHE_ACTIONS.has(action)) {
+    try {
+      entry = JSON.parse(sessionStorage.getItem(API_SESSION_PREFIX + key) || 'null');
+      if (entry) API_MEMORY_CACHE.set(key, entry);
+    } catch (error) { entry = null; }
+  }
+  if (!entry) return null;
+  if (!allowExpired && Date.now() > Number(entry.expiresAt || 0)) return null;
+  return entry;
+}
+
+function writeApiCache(action, params, data) {
+  const ttl = API_READ_CACHE_TTL[action];
+  if (!ttl) return data;
+  const key = apiRequestCacheKey(action, params);
+  const entry = { data, storedAt: Date.now(), expiresAt: Date.now() + ttl };
+  API_MEMORY_CACHE.set(key, entry);
+  if (API_SESSION_CACHE_ACTIONS.has(action)) {
+    try { sessionStorage.setItem(API_SESSION_PREFIX + key, JSON.stringify(entry)); } catch (error) {}
+  }
+  return data;
+}
+
+function invalidateApiCache(actions) {
+  const targets = Array.isArray(actions) && actions.length ? new Set(actions) : null;
+  Array.from(API_MEMORY_CACHE.keys()).forEach(key => {
+    const action = key.split('?')[0];
+    if (!targets || targets.has(action)) API_MEMORY_CACHE.delete(key);
+  });
+  try {
+    for (let index = sessionStorage.length - 1; index >= 0; index--) {
+      const key = sessionStorage.key(index);
+      if (!key || !key.startsWith(API_SESSION_PREFIX)) continue;
+      const action = key.slice(API_SESSION_PREFIX.length).split('?')[0];
+      if (!targets || targets.has(action)) sessionStorage.removeItem(key);
+    }
+  } catch (error) {}
+}
+
 async function gasRequest(action, method = 'GET', data = null, params = null, requestOptions = {}) {
+  const isRead = method === 'GET' && Boolean(API_READ_CACHE_TTL[action]);
+  const effectiveParams = Object.assign({}, params || {});
+  if (requestOptions.force) effectiveParams.force = 'true';
+  const cacheKey = apiRequestCacheKey(action, effectiveParams);
+  if (isRead && !requestOptions.force) {
+    const cached = readApiCache(action, effectiveParams);
+    if (cached) return cached.data;
+  }
+  if (isRead && API_INFLIGHT_REQUESTS.has(cacheKey)) return API_INFLIGHT_REQUESTS.get(cacheKey);
+
   const runRequest = async () => {
     if (['localhost', '127.0.0.1'].includes(window.location.hostname)) {
-      return handleLocalFallback(action, data, params);
+      const localResult = handleLocalFallback(action, data, effectiveParams);
+      return isRead ? writeApiCache(action, effectiveParams, localResult) : localResult;
     }
     let timeoutId = null;
     try {
     let url = GAS_CONFIG.URL;
     let options = { method };
-    const controller = requestOptions.timeoutMs ? new AbortController() : null;
+    const timeoutMs = requestOptions.timeoutMs === undefined && method === 'GET' ? 12000 : Number(requestOptions.timeoutMs || 0);
+    const controller = timeoutMs ? new AbortController() : null;
     if (controller) {
       options.signal = controller.signal;
-      timeoutId = setTimeout(() => controller.abort(), requestOptions.timeoutMs);
+      timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     }
 
     if (method === 'GET') {
       const searchParams = new URLSearchParams({ action });
-      if (params) {
-        for (const key in params) searchParams.append(key, params[key]);
+      if (effectiveParams) {
+        for (const key in effectiveParams) searchParams.append(key, effectiveParams[key]);
       }
       url += '?' + searchParams.toString();
     } else {
@@ -445,22 +526,33 @@ async function gasRequest(action, method = 'GET', data = null, params = null, re
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
     const result = await response.json();
+    if (isRead) writeApiCache(action, effectiveParams, result);
+    else if (method !== 'GET') invalidateApiCache();
     return result;
 
   } catch (error) {
     if (timeoutId) clearTimeout(timeoutId);
-    if (!(requestOptions.background && error && error.name === 'AbortError')) {
-      console.warn(`[HostelAPI] ${action} API request failed. Using local fallback handler.`, error);
+    const stale = isRead ? readApiCache(action, effectiveParams, true) : null;
+    if (stale) {
+      if (Array.isArray(stale.data)) return stale.data;
+      return Object.assign({}, stale.data, { _stale: true, _staleAt: stale.storedAt });
     }
-    return handleLocalFallback(action, data, params);
+    if (!(requestOptions.background && error && error.name === 'AbortError')) console.warn(`[HostelAPI] ${action} API request failed.`, error);
+    throw error;
   }
   };
 
-  if (requestOptions.loading === false || requestOptions.background) {
-    return runRequest();
+  const requestPromise = runRequest();
+  if (isRead) {
+    API_INFLIGHT_REQUESTS.set(cacheKey, requestPromise);
+    requestPromise.finally(() => API_INFLIGHT_REQUESTS.delete(cacheKey)).catch(() => {});
   }
 
-  return window.AppLoading.withTask(API_LOADING_LABELS[action] || 'Loading', runRequest);
+  if (requestOptions.loading === false || requestOptions.background) {
+    return requestPromise;
+  }
+
+  return window.AppLoading.withTask(API_LOADING_LABELS[action] || 'Loading', requestPromise, { overlay: method !== 'GET', delay: method === 'GET' ? 400 : 250 });
 }
 
 function getLocalStudents() {
@@ -753,10 +845,43 @@ function handleLocalFallback(action, data, params) {
   switch (action) {
     case 'getStudents':
       return students;
+    case 'getAdminStudentsPage': {
+      const page = Math.max(1, Number(params?.page) || 1);
+      const pageSize = Math.max(1, Math.min(100, Number(params?.pageSize) || 50));
+      const query = String(params?.query || '').trim().toLowerCase();
+      const documentStatus = String(params?.documentStatus || '').trim().toLowerCase();
+      const fields = ['ApplicationID', 'EnrollmentNo', 'Name', 'Gender', 'Programme', 'Branch', 'TwelfthMarks', 'Category', 'DistanceKm', 'PWD', 'Status', 'Priority', 'Timestamp', 'DocumentStatus', 'DocumentPolicyVersion', 'OfflineVerificationEmailSentAt', 'DiscrepancyEmailSentAt'];
+      const filtered = students.filter(student => (!query || String(student.Name || '').toLowerCase().includes(query) || String(student.EnrollmentNo || '').toLowerCase().includes(query)) && (!documentStatus || String(student.DocumentStatus || 'Pending').toLowerCase() === documentStatus));
+      const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+      const safePage = Math.min(page, totalPages);
+      const start = (safePage - 1) * pageSize;
+      return { items: filtered.slice(start, start + pageSize).map(student => Object.fromEntries(fields.filter(field => student[field] !== undefined).map(field => [field, student[field]]))), page: safePage, pageSize, total: filtered.length, totalPages, generatedAt: new Date().toISOString() };
+    }
+    case 'getAdminStudentDetail': {
+      const appId = String(params?.applicationId || '').trim().toLowerCase();
+      const enrollment = String(params?.enrollmentNo || '').trim().toLowerCase();
+      return students.find(student => appId ? String(student.ApplicationID || '').trim().toLowerCase() === appId : String(student.EnrollmentNo || '').trim().toLowerCase() === enrollment) || { error: 'Student not found.' };
+    }
     case 'getRooms':
       return LOCAL_MOCK_STORE.rooms;
+    case 'getAdminRoomsOverview':
+      return { rooms: LOCAL_MOCK_STORE.rooms, occupancy: {}, generatedAt: new Date().toISOString() };
     case 'getAllocations':
       return LOCAL_MOCK_STORE.allocations;
+    case 'getAdminAllocationsPage': {
+      const page = Math.max(1, Number(params?.page) || 1);
+      const pageSize = Math.max(1, Math.min(100, Number(params?.pageSize) || 50));
+      const gender = String(params?.gender || '').toLowerCase();
+      const status = String(params?.status || '').toLowerCase();
+      const priority = String(params?.priority || '');
+      const priorityByEnrollment = Object.fromEntries(students.map(student => [String(student.EnrollmentNo || '').trim().toLowerCase(), String(student.Priority || '')]));
+      const studentByEnrollment = Object.fromEntries(students.map(student => [String(student.EnrollmentNo || '').trim().toLowerCase(), student]));
+      const filtered = LOCAL_MOCK_STORE.allocations.filter(allocation => (!gender || String(allocation.Gender || '').toLowerCase().includes(gender)) && (!status || String(allocation.Status || '').toLowerCase().includes(status)) && (!priority || priorityByEnrollment[String(allocation.EnrollmentNo || '').trim().toLowerCase()] === priority)).map(allocation => Object.assign({}, allocation, studentByEnrollment[String(allocation.EnrollmentNo || '').trim().toLowerCase()] || {})).slice().reverse();
+      const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+      const safePage = Math.min(page, totalPages);
+      const start = (safePage - 1) * pageSize;
+      return { items: filtered.slice(start, start + pageSize), page: safePage, pageSize, total: filtered.length, totalPages, generatedAt: new Date().toISOString() };
+    }
     case 'getGrievances':
       return LOCAL_MOCK_STORE.grievances;
     case 'getNotices':
@@ -815,7 +940,8 @@ function handleLocalFallback(action, data, params) {
         boyStats: { total: 264, occupied: allocatedBoys, vacant: 264 - allocatedBoys },
         girlStats: { total: 176, occupied: allocatedGirls, vacant: 176 - allocatedGirls },
         priorityBreakdown: [0, 0, 0, 0, 0],
-        recentAllocations: LOCAL_MOCK_STORE.allocations
+        recentAllocations: LOCAL_MOCK_STORE.allocations.slice(-5).reverse(),
+        generatedAt: new Date().toISOString()
       };
     }
     case 'getStudentStatus': {
@@ -1240,10 +1366,14 @@ async function askChatbot(message, context = {}) {
 // ── Public API ────────────────────────────────────────────────────────────
 window.HostelAPI = {
   // ── Admin ──────────────────────────────────────────────
-  getDashboard:     ()         => gasRequest('getDashboard',     'GET'),
+  getDashboard:     (options = {}) => gasRequest('getDashboard', 'GET', null, null, options),
   getStudents:      ()         => gasRequest('getStudents',      'GET'),
+  getAdminStudentsPage: (params = {}, options = {}) => gasRequest('getAdminStudentsPage', 'GET', null, params, options),
+  getAdminStudentDetail: (params = {}, options = {}) => gasRequest('getAdminStudentDetail', 'GET', null, params, options),
   getRooms:         ()         => gasRequest('getRooms',         'GET'),
+  getAdminRoomsOverview: (options = {}) => gasRequest('getAdminRoomsOverview', 'GET', null, null, options),
   getAllocations:    ()         => gasRequest('getAllocations',   'GET'),
+  getAdminAllocationsPage: (params = {}, options = {}) => gasRequest('getAdminAllocationsPage', 'GET', null, params, options),
   getGrievances:    ()         => gasRequest('getGrievances',    'GET'),
   getNotices:       (options = {}) => gasRequest('getNotices',       'GET', null, null, options),
   getSettingsPublic: ()        => gasRequest('getSettingsPublic', 'GET'),
@@ -1263,6 +1393,8 @@ window.HostelAPI = {
   submitApplication: (data)      => gasRequest('submitApplication', 'POST', data),
   getStudentStatus:  (no, dob)   => gasRequest('getStudentStatus',  'GET',  null, { enrollmentNo: no, dob }),
   fileGrievance:     (data)      => gasRequest('fileGrievance',     'POST', data),
+  peekCache: (action, params = {}, allowExpired = true) => readApiCache(action, params, allowExpired),
+  invalidateCache: (actions) => invalidateApiCache(actions),
   runLocalMarksheetScreening: (enrollmentNo, result) => runLocalMarksheetScreening(enrollmentNo, result),
   askChatbot:         (message, context) => askChatbot(message, context),
 };

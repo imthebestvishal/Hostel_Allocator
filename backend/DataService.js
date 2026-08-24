@@ -1,31 +1,21 @@
 function getSheetData(sheetName) {
-  if (sheetName === 'Students') ensureStudentDocumentColumns();
   const sheet = getSheet(sheetName);
   if (!sheet) return [];
-  const range = sheet.getDataRange();
-  const displayValues = range.getDisplayValues();
-  const rawValues = range.getValues();
-  if (displayValues.length <= 1) return [];
+  const values = sheet.getDataRange().getValues();
+  if (values.length <= 1) return [];
   
-  const headers = displayValues[0];
+  const headers = values[0].map(String);
   let results = [];
   
-  for (let r = 1; r < displayValues.length; r++) {
-    let rowDisplay = displayValues[r];
-    let rowRaw = rawValues[r];
-    
-    let hasData = rowDisplay.some(cell => String(cell).trim() !== '');
+  for (let r = 1; r < values.length; r++) {
+    const row = values[r];
+    let hasData = row.some(cell => String(cell).trim() !== '');
     if (!hasData) continue;
     let obj = {};
     headers.forEach((header, c) => {
       if (header) {
-        let val = rowDisplay[c];
-        if (typeof rowRaw[c] === 'number') {
-          val = rowRaw[c];
-        } else if (typeof rowRaw[c] === 'boolean') {
-          val = rowRaw[c];
-        }
-        obj[header] = val;
+        const value = row[c];
+        obj[header] = value instanceof Date ? value.toISOString() : value;
       }
     });
     results.push(obj);
@@ -306,6 +296,157 @@ function getAllStudents() {
   return getSheetData('Students');
 }
 
+const ADMIN_CACHE_SECONDS = 15;
+const PUBLIC_CACHE_SECONDS = 60;
+
+function getPortalCache() {
+  return typeof CacheService !== 'undefined' ? CacheService.getScriptCache() : null;
+}
+
+function getPortalCacheVersion(domain) {
+  const cache = getPortalCache();
+  if (!cache) return '0';
+  try { return cache.get(`portal-version:${domain}`) || '0'; } catch (error) { return '0'; }
+}
+
+function invalidatePortalCaches(domains) {
+  const cache = getPortalCache();
+  if (!cache) return;
+  const targets = Array.isArray(domains) && domains.length ? domains : ['dashboard', 'students', 'allocations', 'rooms', 'grievances', 'notices', 'settings'];
+  targets.forEach(domain => { try { cache.put(`portal-version:${domain}`, String(Date.now()), 21600); } catch (error) {} });
+}
+
+function readPortalCache(domain, key, seconds, force, producer) {
+  const cache = getPortalCache();
+  const cacheKey = `portal:${domain}:${getPortalCacheVersion(domain)}:${key}`;
+  if (cache && String(force || '').toLowerCase() !== 'true') {
+    let cached = null;
+    try { cached = cache.get(cacheKey); } catch (error) {}
+    if (cached) {
+      try { return JSON.parse(cached); } catch (error) {}
+    }
+  }
+  const value = producer();
+  if (cache) {
+    const serialized = JSON.stringify(value);
+    if (serialized.length < 90000) {
+      try { cache.put(cacheKey, serialized, seconds); } catch (error) {}
+    }
+  }
+  return value;
+}
+
+function clampAdminPage(value) {
+  return Math.max(1, parseInt(value, 10) || 1);
+}
+
+function clampAdminPageSize(value) {
+  return Math.max(1, Math.min(100, parseInt(value, 10) || 50));
+}
+
+function createPageResult(items, page, pageSize, total) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  return { items, page, pageSize, total, totalPages, generatedAt: new Date().toISOString() };
+}
+
+function projectRecord(record, fields) {
+  const projected = {};
+  fields.forEach(field => { if (record[field] !== undefined) projected[field] = record[field]; });
+  return projected;
+}
+
+const ADMIN_STUDENT_LIST_FIELDS = [
+  'ApplicationID', 'EnrollmentNo', 'Name', 'Gender', 'Programme', 'Branch', 'TwelfthMarks', 'Category',
+  'DistanceKm', 'PWD', 'Status', 'Priority', 'Timestamp', 'DocumentStatus', 'DocumentPolicyVersion',
+  'OfflineVerificationEmailSentAt', 'DiscrepancyEmailSentAt'
+];
+
+function getAdminStudentsPage(params) {
+  const input = params || {};
+  const page = clampAdminPage(input.page);
+  const pageSize = clampAdminPageSize(input.pageSize);
+  const query = String(input.query || '').trim().toLowerCase();
+  const documentStatus = String(input.documentStatus || '').trim().toLowerCase();
+  const key = [page, pageSize, query, documentStatus].map(encodeURIComponent).join(':');
+  return readPortalCache('students', key, ADMIN_CACHE_SECONDS, input.force, function() {
+    const filtered = getAllStudents().filter(student => {
+      const name = String(student.Name || '').toLowerCase();
+      const enrollment = String(student.EnrollmentNo || '').toLowerCase();
+      const status = String(student.DocumentStatus || 'Pending').toLowerCase();
+      return (!query || name.includes(query) || enrollment.includes(query)) && (!documentStatus || status === documentStatus);
+    });
+    const safePage = Math.min(page, Math.max(1, Math.ceil(filtered.length / pageSize)));
+    const start = (safePage - 1) * pageSize;
+    return createPageResult(filtered.slice(start, start + pageSize).map(student => projectRecord(student, ADMIN_STUDENT_LIST_FIELDS)), safePage, pageSize, filtered.length);
+  });
+}
+
+function getAdminStudentDetail(params) {
+  const input = params || {};
+  const applicationId = String(input.applicationId || '').trim().toLowerCase();
+  const enrollmentNo = String(input.enrollmentNo || '').trim().toLowerCase();
+  const lookup = applicationId || enrollmentNo;
+  if (!lookup) return { error: 'Application ID or enrollment number is required.' };
+  return readPortalCache('students', `detail:${applicationId ? 'application' : 'enrollment'}:${encodeURIComponent(lookup)}`, ADMIN_CACHE_SECONDS, input.force, function() {
+    const sheet = getSheet('Students');
+    if (!sheet || sheet.getLastRow() <= 1) return { error: 'Student not found.' };
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+    const lookupHeader = applicationId ? 'ApplicationID' : 'EnrollmentNo';
+    const lookupColumn = headers.indexOf(lookupHeader) + 1;
+    if (!lookupColumn) return { error: 'Student lookup column is unavailable.' };
+    const lookupValues = sheet.getRange(2, lookupColumn, sheet.getLastRow() - 1, 1).getValues();
+    const matchIndex = lookupValues.findIndex(row => String(row[0] || '').trim().toLowerCase() === lookup);
+    if (matchIndex === -1) return { error: 'Student not found.' };
+    const row = sheet.getRange(matchIndex + 2, 1, 1, headers.length).getValues()[0];
+    const student = {};
+    headers.forEach((header, index) => { if (header) student[header] = row[index] instanceof Date ? row[index].toISOString() : row[index]; });
+    return student;
+  });
+}
+
+function getAdminAllocationsPage(params) {
+  const input = params || {};
+  const page = clampAdminPage(input.page);
+  const pageSize = clampAdminPageSize(input.pageSize);
+  const gender = String(input.gender || '').trim().toLowerCase();
+  const status = String(input.status || '').trim().toLowerCase();
+  const priority = String(input.priority || '').trim();
+  const key = [page, pageSize, gender, status, priority].map(encodeURIComponent).join(':');
+  return readPortalCache('allocations', key, ADMIN_CACHE_SECONDS, input.force, function() {
+    const students = getAllStudents();
+    const studentByEnrollment = {};
+    students.forEach(student => { studentByEnrollment[String(student.EnrollmentNo || '').trim().toLowerCase()] = student; });
+    const filtered = getAllAllocations().filter(allocation => {
+      const allocationGender = String(allocation.Gender || '').toLowerCase();
+      const allocationStatus = String(allocation.Status || '').toLowerCase();
+      const enrollment = String(allocation.EnrollmentNo || '').trim().toLowerCase();
+      return (!gender || allocationGender.includes(gender)) && (!status || allocationStatus.includes(status)) && (!priority || String(studentByEnrollment[enrollment] && studentByEnrollment[enrollment].Priority || '') === priority);
+    }).map(allocation => {
+      const student = studentByEnrollment[String(allocation.EnrollmentNo || '').trim().toLowerCase()] || {};
+      return Object.assign({}, allocation, projectRecord(student, ['Category', 'Priority', 'Programme', 'Branch', 'DistanceKm', 'TwelfthMarks', 'Email', 'Phone']));
+    }).reverse();
+    const safePage = Math.min(page, Math.max(1, Math.ceil(filtered.length / pageSize)));
+    const start = (safePage - 1) * pageSize;
+    return createPageResult(filtered.slice(start, start + pageSize), safePage, pageSize, filtered.length);
+  });
+}
+
+function getAdminRoomsOverview(params) {
+  const input = params || {};
+  return readPortalCache('rooms', 'overview', ADMIN_CACHE_SECONDS, input.force, function() {
+    const occupancy = {};
+    getAllAllocations().forEach(allocation => {
+      const status = String(allocation.Status || 'Active').toLowerCase();
+      if (status && ['active', 'allocated', 'confirmed'].indexOf(status) === -1) return;
+      [allocation.RoomID, allocation.RoomNumber].forEach(value => {
+        const key = String(value || '').trim().toLowerCase().replace(/\s+/g, '').replace(/[–—]/g, '-');
+        if (key) occupancy[key] = (occupancy[key] || 0) + 1;
+      });
+    });
+    return { rooms: getAllRooms(), occupancy, generatedAt: new Date().toISOString() };
+  });
+}
+
 function getStudentStatus(enrollmentNo, dob) {
   const students = getAllStudents();
   const targetEnroll = String(enrollmentNo || '').trim().toLowerCase();
@@ -371,20 +512,20 @@ function getStudentStatus(enrollmentNo, dob) {
   }
   
   if (String(student.Status || '').toLowerCase() !== 'allocated') {
-    result.allotmentProbability = calculateAllotmentProbability(student);
+    result.allotmentProbability = calculateAllotmentProbability(student, students);
   }
   
   return result;
 }
 
-function calculateAllotmentProbability(student) {
+function calculateAllotmentProbability(student, loadedStudents) {
   const status = String(getStudentValue(student, 'Status')).toLowerCase();
   if (status === 'allocated') return null;
 
   const gender = String(getStudentValue(student, 'Gender')).toLowerCase();
   const targetEnroll = String(getStudentValue(student, 'EnrollmentNo')).trim();
 
-  const sameGenderApplicants = getAllStudents().filter(s => {
+  const sameGenderApplicants = (Array.isArray(loadedStudents) ? loadedStudents : getAllStudents()).filter(s => {
     const sStatus = String(getStudentValue(s, 'Status')).toLowerCase();
     if (sStatus === 'allocated') return false;
     const sGender = String(getStudentValue(s, 'Gender')).toLowerCase();
@@ -528,9 +669,11 @@ function normalizeNoticeAudience(value) {
   return 'Student';
 }
 
-function getNotices() {
-  ensureNoticeColumns();
-  return getSheetData('Notices').filter(n => n.Active === true || n.Active === 'TRUE').reverse();
+function getNotices(params) {
+  const input = params || {};
+  return readPortalCache('notices', 'active', PUBLIC_CACHE_SECONDS, input.force, function() {
+    return getSheetData('Notices').filter(n => n.Active === true || String(n.Active).toUpperCase() === 'TRUE').reverse();
+  });
 }
 
 function postNotice(data) {
@@ -674,7 +817,23 @@ function updateDocumentVerification(data) {
   return { success: false, error: 'Student not found.' };
 }
 
-function getDashboardData() {
+function getLastSheetRecords(sheetName, count) {
+  const sheet = getSheet(sheetName);
+  if (!sheet || sheet.getLastRow() <= 1) return [];
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+  const available = Math.min(Math.max(0, Number(count) || 0), sheet.getLastRow() - 1);
+  if (!available) return [];
+  const startRow = sheet.getLastRow() - available + 1;
+  return sheet.getRange(startRow, 1, available, headers.length).getValues().map(row => {
+    const result = {};
+    headers.forEach((header, index) => { if (header) result[header] = row[index] instanceof Date ? row[index].toISOString() : row[index]; });
+    return result;
+  });
+}
+
+function getDashboardData(params) {
+  const input = params || {};
+  return readPortalCache('dashboard', 'summary', ADMIN_CACHE_SECONDS, input.force, function() {
   const students = getAllStudents();
   const totalApplied = students.length;
   
@@ -713,8 +872,7 @@ function getDashboardData() {
     if (p >= 1 && p <= 5) priorityBreakdown[p - 1]++;
   });
   
-  const allocations = getAllAllocations();
-  const recentAllocations = allocations.slice(-5).reverse();
+  const recentAllocations = getLastSheetRecords('Allocations', 5).reverse();
   
   return {
     totalApplied, allocated, waitlisted, pending,
@@ -722,8 +880,10 @@ function getDashboardData() {
     boyStats: roomSummary.boys,
     girlStats: roomSummary.girls,
     priorityBreakdown,
-    recentAllocations
+    recentAllocations,
+    generatedAt: new Date().toISOString()
   };
+  });
 }
 
 function adminLogin(data) {
@@ -744,14 +904,17 @@ function getSettingsMap() {
   return map;
 }
 
-function getSettingsPublic() {
-  const settings = getSettingsMap();
-  return {
+function getSettingsPublic(params) {
+  const input = params || {};
+  return readPortalCache('settings', 'public', PUBLIC_CACHE_SECONDS, input.force, function() {
+    const settings = getSettingsMap();
+    return {
     registrationOpen: String(settings.REGISTRATION_OPEN || 'true').toLowerCase() !== 'false',
     registrationCloseDate: settings.REGISTRATION_CLOSE_DATE || '',
     hostelOfficeContact: settings.HOSTEL_OFFICE_CONTACT || 'Contact the Warden Office for official hostel support.',
     messFeeNote: settings.MESS_FEE_NOTE || 'Mess and hostel fee details will be announced through official notices.'
-  };
+    };
+  });
 }
 
 function updateSetting(data) {

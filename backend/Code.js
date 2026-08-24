@@ -10,24 +10,29 @@ const CORS_HEADERS = {
 };
 
 function doGet(e) {
+  if (typeof resetSpreadsheetContext === 'function') resetSpreadsheetContext();
   const action = e.parameter.action || '';
   
   try {
     let result;
     switch(action) {
-      case 'getDashboard':    result = getDashboardData(); break;
+      case 'getDashboard':    result = getDashboardData(e.parameter); break;
       case 'getStudents':     result = getAllStudents(); break;
+      case 'getAdminStudentsPage': result = getAdminStudentsPage(e.parameter); break;
+      case 'getAdminStudentDetail': result = getAdminStudentDetail(e.parameter); break;
       case 'getRooms':        result = getAllRooms(); break;
       case 'getAllocations':  result = getAllAllocations(); break;
+      case 'getAdminAllocationsPage': result = getAdminAllocationsPage(e.parameter); break;
+      case 'getAdminRoomsOverview': result = getAdminRoomsOverview(e.parameter); break;
       case 'getGrievances':   result = getAllGrievances(); break;
-      case 'getNotices':      result = getNotices(); break;
+      case 'getNotices':      result = getNotices(e.parameter); break;
       case 'getStudentStatus': result = getStudentStatus(e.parameter.enrollmentNo, e.parameter.dob); break;
-      case 'runAllocation':   result = runAllocationEngine(); break;
+      case 'runAllocation':   result = runAllocationEngine(); invalidatePortalCaches(); break;
       case 'getAllocationPreview': result = getAllocationPreview(); break;
-      case 'resetVerifiedTestStudentsForReallocation': result = resetVerifiedTestStudentsForReallocation(); break;
-      case 'sendLetters':     result = sendAllotmentLetters(); break;
-      case 'reseedRooms':     result = resetAndSeedRooms(); break;
-      case 'getSettingsPublic': result = getSettingsPublic(); break;
+      case 'resetVerifiedTestStudentsForReallocation': result = resetVerifiedTestStudentsForReallocation(); invalidatePortalCaches(); break;
+      case 'sendLetters':     result = sendAllotmentLetters(); invalidatePortalCaches(['allocations']); break;
+      case 'reseedRooms':     result = resetAndSeedRooms(); invalidatePortalCaches(['dashboard', 'rooms']); break;
+      case 'getSettingsPublic': result = getSettingsPublic(e.parameter); break;
       default: result = { status: 'ok', message: 'GGSIPU Hostel Allocator API', version: '1.0' };
     }
     return buildResponse(result);
@@ -37,6 +42,7 @@ function doGet(e) {
 }
 
 function doPost(e) {
+  if (typeof resetSpreadsheetContext === 'function') resetSpreadsheetContext();
   let body;
   try {
     body = JSON.parse(e.postData.contents);
@@ -60,6 +66,9 @@ function doPost(e) {
       case 'updateSetting':     result = updateSetting(body.data); break;
       case 'resetVerifiedTestStudentsForReallocation': result = resetVerifiedTestStudentsForReallocation(); break;
       default: result = { error: 'Unknown action' };
+    }
+    if (result && !result.error && result.success !== false && ['submitApplication', 'fileGrievance', 'postNotice', 'updateRoomStatus', 'updateDocumentVerification', 'sendDiscrepancyEmail', 'sendDiscrepancyEmails', 'resolveGrievance', 'updateSetting', 'resetVerifiedTestStudentsForReallocation'].indexOf(action) !== -1) {
+      invalidatePortalCaches();
     }
     return buildResponse(result);
   } catch(err) {

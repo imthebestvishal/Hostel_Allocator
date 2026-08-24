@@ -1,8 +1,18 @@
 const SHEET_ID = '1b4L0xvbXijBS6iDhxJ4ir86bsxWE7t6-7ZFppLZqjQI';
 
+let activeSpreadsheet = null;
+
+function resetSpreadsheetContext() {
+  activeSpreadsheet = null;
+}
+
+function getSpreadsheet() {
+  if (!activeSpreadsheet) activeSpreadsheet = SpreadsheetApp.openById(SHEET_ID);
+  return activeSpreadsheet;
+}
+
 function getSheet(name) {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
-  return ss.getSheetByName(name);
+  return getSpreadsheet().getSheetByName(name);
 }
 
 function setupDatabase() {

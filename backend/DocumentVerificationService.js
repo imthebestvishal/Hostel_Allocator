@@ -279,7 +279,7 @@ function processPendingMarksheetScreenings(adapters) {
           MarksheetC2paSigningTime: provenance.c2pa.signingTime,
           MarksheetC2paVerifierVersion: provenance.c2pa.verifierVersion,
           MarksheetApprovalSource: decision.approvalSource,
-          DocumentAuditLog: decision.status === 'Verified' ? appendAutomatedApprovalAudit(student, decision) : String(student.DocumentAuditLog || ''),
+          DocumentAuditLog: decision.status === 'Verified' ? appendAutomatedApprovalAudit(student, decision) : student.DocumentAuditLog,
           MarksheetVerificationLastError: ''
         });
         if (decision.status === 'Offline Verification Required') {
@@ -304,6 +304,7 @@ function processPendingMarksheetScreenings(adapters) {
       }
       processed += 1;
     }
+    if (processed > 0 && typeof invalidatePortalCaches === 'function') invalidatePortalCaches(['dashboard', 'students']);
     return { success: true, processed };
   } finally {
     lock.releaseLock();

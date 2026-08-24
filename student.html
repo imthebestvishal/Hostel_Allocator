@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Student Portal - GGSIPU Hostel Allocator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="hostel-map.css">
     <style>
@@ -1515,20 +1517,17 @@
                     return !audience || audience === 'student' || audience === 'both';
                 });
                 const container = document.querySelector('#tab-notices .card');
-                let html = '<h3 class="card-title" style="margin-bottom: 24px;">Hostel Notice Board</h3>';
-                if (!studentNotices.length) {
-                    html += '<p style="color: var(--c-muted);">No active hostel notices are available right now.</p>';
-                }
-                studentNotices.forEach(n => {
+                const noticeHtml = studentNotices.map(n => {
                     const date = n.PostedAt || n.Date || n.date || '';
                     const title = n.Title || n.title || 'Hostel Notice';
                     const body = n.Body || n.content || n.body || '';
-                    html += `<div class="notice-card">
+                    return `<div class="notice-card">
                         <div class="notice-date">${date}</div>
                         <h4 class="notice-title">${title}</h4>
                         <p class="notice-body">${body}</p>
                     </div>`;
-                });
+                }).join('');
+                const html = '<h3 class="card-title" style="margin-bottom: 24px;">Hostel Notice Board</h3>' + (noticeHtml || '<p style="color: var(--c-muted);">No active hostel notices are available right now.</p>');
                 if (container) container.innerHTML = html;
             } catch(e) {
                 console.error(e);
