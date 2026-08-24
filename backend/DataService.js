@@ -34,6 +34,7 @@ function getSheetData(sheetName) {
 }
 
 const STUDENT_DOCUMENT_COLUMNS = [
+  'Hobbies',
   'AadhaarFile',
   'PhotoFile',
   'MarksheetFile',
@@ -48,7 +49,36 @@ const STUDENT_DOCUMENT_COLUMNS = [
   'PwdCertificateRemarks',
   'DocumentStatus',
   'DocumentRemarks',
-  'DiscrepancyEmailSentAt'
+  'DiscrepancyEmailSentAt',
+  'DocumentPolicyVersion',
+  'MarksheetFileId',
+  'MarksheetMimeType',
+  'MarksheetFileSize',
+  'MarksheetChecksum',
+  'MarksheetBrowserChecksum',
+  'MarksheetScreeningAttempts',
+  'MarksheetVerificationCheckedAt',
+  'MarksheetVerificationProvider',
+  'MarksheetVerificationModel',
+  'MarksheetVerificationConfidence',
+  'MarksheetVerificationReasons',
+  'MarksheetExtractedData',
+  'MarksheetVerificationLastError',
+  'OfflineVerificationEmailSentAt',
+  'MarksheetRetrievedChecksum',
+  'MarksheetMetadataSummary',
+  'MarksheetC2paStatus',
+  'MarksheetC2paIssuer',
+  'MarksheetC2paSigningTime',
+  'MarksheetDigitalSignatureStatus',
+  'MarksheetSynthIdStatus',
+  'MarksheetSynthIdProvider',
+  'MarksheetSynthIdDetectorVersion',
+  'DocumentManualReviewer',
+  'DocumentManualReviewedAt',
+  'DocumentManualEvidenceSource',
+  'DocumentPreviousStatus',
+  'DocumentAuditLog'
 ];
 
 function ensureStudentDocumentColumns() {
@@ -137,8 +167,32 @@ function uploadStudentDocument(fileData, applicationId, label) {
   const folders = DriveApp.getFoldersByName(folderName);
   const folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
   const file = folder.createFile(blob);
-  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  file.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.VIEW);
   return file.getUrl();
+}
+
+function uploadRequiredMarksheet(fileData, applicationId) {
+  const validated = validateMarksheetFilePayload(fileData);
+  const safeAppId = String(applicationId || 'APPLICATION').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const safeOriginalName = validated.originalName.replace(/[\\/:*?"<>|]/g, '_');
+  const fileName = `${safeAppId}_Marksheet_${safeOriginalName}`;
+  const checksum = bytesToHex(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, validated.bytes));
+  const browserChecksum = String(fileData.browserChecksum || '').toLowerCase();
+  if (browserChecksum && browserChecksum !== checksum) throw new Error('The file changed while it was being prepared for upload.');
+  const blob = Utilities.newBlob(validated.bytes, validated.mimeType, fileName);
+  const folderName = 'GGSIPU Hostel Application Documents';
+  const folders = DriveApp.getFoldersByName(folderName);
+  const folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
+  const file = folder.createFile(blob);
+  file.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.VIEW);
+  return {
+    url: file.getUrl(),
+    fileId: file.getId(),
+    mimeType: validated.mimeType,
+    size: validated.size,
+    checksum: checksum,
+    browserChecksum: browserChecksum
+  };
 }
 
 function submitApplication(data) {
@@ -172,40 +226,61 @@ function submitApplication(data) {
   const priority = calculatePriority(normalizedData);
   const timestamp = new Date();
   const documents = data.documents || {};
-  const aadhaarFile = uploadStudentDocument(data.AadhaarFile || data.aadhaarFile || documents.aadhaar, applicationId, 'Aadhaar');
-  const photoFile = uploadStudentDocument(data.PhotoFile || data.photoFile || documents.photo, applicationId, 'Photo');
-  const marksheetFile = uploadStudentDocument(data.MarksheetFile || data.marksheetFile || documents.marksheet, applicationId, 'Marksheet');
-  const pwdCertificateFile = pwd === 'Yes'
-    ? uploadStudentDocument(data.PwdCertificateFile || data.pwdCertificateFile || documents.pwdCertificate, applicationId, 'PwdCertificate')
-    : 'Not Applicable';
+  const marksheet = uploadRequiredMarksheet(data.MarksheetFile || data.marksheetFile || documents.marksheet, applicationId);
 
-  const row = [
-    applicationId, enroll, name, gender, dob, email, phone, aadhaar,
-    programme, branch, year, twelfthMarks, category, state, parentsTransferred,
-    distanceKm, pwd, hostelPref, roommatePref, 'Pending', priority, timestamp,hobbies
-  ];
-
-  const docDefaults = {
-    AadhaarFile: aadhaarFile,
-    PhotoFile: photoFile,
-    MarksheetFile: marksheetFile,
-    PwdCertificateFile: pwdCertificateFile,
-    AadhaarStatus: aadhaarFile ? 'Pending' : 'Missing',
-    PhotoStatus: photoFile ? 'Pending' : 'Missing',
-    MarksheetStatus: marksheetFile ? 'Pending' : 'Missing',
-    PwdCertificateStatus: pwd === 'Yes' ? (pwdCertificateFile ? 'Pending' : 'Missing') : 'Not Applicable',
+  const rowValues = {
+    ApplicationID: applicationId,
+    EnrollmentNo: enroll,
+    Name: name,
+    Gender: gender,
+    DOB: dob,
+    Email: email,
+    Phone: phone,
+    Aadhaar: aadhaar,
+    Programme: programme,
+    Branch: branch,
+    Year: year,
+    TwelfthMarks: twelfthMarks,
+    Category: category,
+    State: state,
+    ParentsTransferred: parentsTransferred,
+    DistanceKm: distanceKm,
+    PWD: pwd,
+    HostelPref: hostelPref,
+    RoommatePreference: roommatePref,
+    Status: 'Pending',
+    Priority: priority,
+    Timestamp: timestamp,
+    Hobbies: hobbies,
+    AadhaarFile: 'Not Applicable',
+    PhotoFile: 'Not Applicable',
+    MarksheetFile: marksheet.url,
+    PwdCertificateFile: 'Not Applicable',
+    AadhaarStatus: 'Not Applicable',
+    PhotoStatus: 'Not Applicable',
+    MarksheetStatus: 'Screening Pending',
+    PwdCertificateStatus: 'Not Applicable',
     AadhaarRemarks: '',
     PhotoRemarks: '',
     MarksheetRemarks: '',
     PwdCertificateRemarks: '',
-    DocumentStatus: 'Pending',
-    DocumentRemarks: '',
-    DiscrepancyEmailSentAt: ''
+    DocumentStatus: 'Screening Pending',
+    DocumentRemarks: 'Automated provenance screening is pending.',
+    DiscrepancyEmailSentAt: '',
+    DocumentPolicyVersion: MARKSHEET_POLICY_VERSION,
+    MarksheetFileId: marksheet.fileId,
+    MarksheetMimeType: marksheet.mimeType,
+    MarksheetFileSize: marksheet.size,
+    MarksheetChecksum: marksheet.checksum,
+    MarksheetBrowserChecksum: marksheet.browserChecksum,
+    MarksheetScreeningAttempts: 0,
+    OfflineVerificationEmailSentAt: ''
   };
 
-  Object.keys(docDefaults).forEach(key => {
+  const row = new Array(sheet.getLastColumn()).fill('');
+  Object.keys(rowValues).forEach(key => {
     const col = columnMap[key];
-    if (col) row[col - 1] = docDefaults[key];
+    if (col) row[col - 1] = rowValues[key];
   });
 
   sheet.appendRow(row);
@@ -215,7 +290,7 @@ function submitApplication(data) {
   } catch(e) {
     Logger.log('Confirmation email error: ' + e);
   }
-  return { success: true, applicationId: applicationId };
+  return { success: true, applicationId: applicationId, documentStatus: 'Screening Pending' };
 }
 
 function getAllStudents() {
@@ -242,6 +317,8 @@ function getStudentStatus(enrollmentNo, dob) {
   }
   
   const studentName = student.Name || student.name || 'Student';
+  const applicationDetails = Object.assign({}, student);
+  ['MarksheetChecksum', 'MarksheetBrowserChecksum', 'MarksheetRetrievedChecksum', 'MarksheetMetadataSummary', 'MarksheetC2paIssuer', 'MarksheetC2paSigningTime', 'MarksheetSynthIdProvider', 'MarksheetSynthIdDetectorVersion', 'MarksheetVerificationReasons', 'MarksheetVerificationLastError', 'DocumentAuditLog'].forEach(key => { delete applicationDetails[key]; });
   
   let result = { 
     success: true,
@@ -250,7 +327,17 @@ function getStudentStatus(enrollmentNo, dob) {
     applicationId: student.ApplicationID,
     status: student.Status || 'Pending',
     priority: student.Priority,
-    applicationDetails: student
+    applicationDetails: applicationDetails,
+    documentVerification: {
+      status: student.DocumentStatus || 'Screening Pending',
+      checkedAt: student.MarksheetVerificationCheckedAt || '',
+      remarks: student.DocumentRemarks || '',
+      instructions: String(student.DocumentStatus || '').toLowerCase() === 'offline verification required'
+        ? 'Please bring the original 12th marksheet to the hostel office for offline verification.'
+        : String(student.DocumentStatus || '').toLowerCase().includes('original required')
+          ? 'Automated provenance checks completed. Please present the original 12th marksheet for final verification.'
+          : ''
+    }
   };
   
   if (student.Status === 'Allocated') {
@@ -501,6 +588,16 @@ function updateDocumentVerification(data) {
     const rowEnroll = String(rows[i][1] || '').trim();
     const rowAppId = String(rows[i][0] || '').trim();
     if ((targetEnroll && rowEnroll === targetEnroll) || (targetAppId && rowAppId === targetAppId)) {
+      const previousStatus = columnMap.DocumentStatus ? String(rows[i][columnMap.DocumentStatus - 1] || '') : '';
+      let requestedStatus = data.DocumentStatus || data.documentStatus;
+      const reviewer = String(data.Reviewer || data.reviewer || data.reviewedBy || 'Administrator').trim();
+      const evidenceSource = String(data.EvidenceSource || data.evidenceSource || '').trim();
+      const manualSynthStatus = String(data.MarksheetSynthIdStatus || '').trim();
+      const manualSynthProvider = String(data.MarksheetSynthIdProvider || '').trim();
+      if (manualSynthStatus === 'Detected' && ['Google SynthID', 'OpenAI Verify'].includes(manualSynthProvider)) requestedStatus = 'Offline Verification Required';
+      if (requestedStatus === 'Verified' && !['Original Document', 'Trusted Issuer Signature', 'DigiLocker', 'Official Board Record'].includes(evidenceSource)) {
+        return { success: false, error: 'Verified status requires an approved evidence source.' };
+      }
       const documents = data.documents || {};
       const remarks = data.remarksByDocument || {};
       const statusMap = {
@@ -512,15 +609,48 @@ function updateDocumentVerification(data) {
         PhotoRemarks: remarks.photo || data.PhotoRemarks || '',
         MarksheetRemarks: remarks.marksheet || data.MarksheetRemarks || '',
         PwdCertificateRemarks: remarks.pwdCertificate || data.PwdCertificateRemarks || '',
-        DocumentStatus: data.DocumentStatus || data.documentStatus,
-        DocumentRemarks: data.DocumentRemarks || data.remarks || ''
+        DocumentStatus: requestedStatus,
+        DocumentRemarks: data.DocumentRemarks || data.remarks || '',
+        MarksheetSynthIdStatus: manualSynthStatus || undefined,
+        MarksheetSynthIdProvider: manualSynthProvider || undefined,
+        MarksheetSynthIdDetectorVersion: data.MarksheetSynthIdDetectorVersion || undefined,
+        DocumentManualReviewer: reviewer,
+        DocumentManualReviewedAt: new Date(),
+        DocumentManualEvidenceSource: evidenceSource,
+        DocumentPreviousStatus: previousStatus
       };
+      if (manualSynthStatus === 'Detected' && ['Google SynthID', 'OpenAI Verify'].includes(manualSynthProvider)) {
+        statusMap.MarksheetVerificationReasons = JSON.stringify(['AI_PROVENANCE_DETECTED']);
+      }
+
+      const auditEntry = {
+        at: new Date().toISOString(),
+        reviewer: reviewer,
+        evidenceSource: evidenceSource,
+        previousStatus: previousStatus,
+        newStatus: requestedStatus || previousStatus,
+        remarks: data.DocumentRemarks || data.remarks || ''
+      };
+      let audit = [];
+      if (columnMap.DocumentAuditLog) {
+        try { audit = JSON.parse(String(rows[i][columnMap.DocumentAuditLog - 1] || '[]')); } catch (e) { audit = []; }
+      }
+      if (!Array.isArray(audit)) audit = [];
+      audit.push(auditEntry);
+      statusMap.DocumentAuditLog = JSON.stringify(audit.slice(-50));
 
       Object.keys(statusMap).forEach(key => {
         if (columnMap[key] && statusMap[key] !== undefined) {
           sheet.getRange(i + 1, columnMap[key]).setValue(statusMap[key]);
         }
       });
+
+      if (requestedStatus === 'Offline Verification Required' && previousStatus !== 'Offline Verification Required') {
+        const studentData = {};
+        Object.keys(columnMap).forEach(key => { studentData[key] = rows[i][columnMap[key] - 1]; });
+        Object.keys(statusMap).forEach(key => { if (statusMap[key] !== undefined) studentData[key] = statusMap[key]; });
+        sendOfflineVerificationRequiredEmail(studentData, { remarks: statusMap.DocumentRemarks || 'Please present the original marksheet for verification.' });
+      }
 
       return { success: true, message: 'Document verification updated.' };
     }

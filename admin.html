@@ -1100,7 +1100,9 @@
                     <select class="filter-select" id="students-doc-filter" onchange="applyStudentFilters()">
                         <option value="">All Documents</option>
                         <option value="Pending">Pending</option>
+                        <option value="Screening Pending">Screening Pending</option>
                         <option value="Verified">Verified</option>
+                        <option value="Offline Verification Required">Offline Verification Required</option>
                         <option value="Discrepancy">Discrepancy</option>
                     </select>
                     <button class="btn-primary" onclick="sendBulkDiscrepancyEmails()">Send Discrepancy Emails (Unallotted)</button>
@@ -1311,7 +1313,43 @@
             <p class="modal-body" id="docReviewStudentMeta" style="margin-bottom:8px; text-align:center; font-size:0.9rem;">Review uploaded documents before allocation.</p>
             
             <div class="doc-modal-scrollable">
+                <div id="docAutomatedScreeningMeta" style="padding:12px 14px; margin-bottom:12px; border:1px solid var(--c-border); border-radius:10px; background:#f8fafc; color:var(--c-muted); font-size:.82rem; line-height:1.6;"></div>
                 <div class="document-review-list" id="docReviewList"></div>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:10px; margin-top:12px;">
+                    <div class="form-group" style="margin:0;">
+                        <label for="docEvidenceSource">Verification evidence</label>
+                        <select class="form-control" id="docEvidenceSource">
+                            <option value="">Select evidence source</option>
+                            <option value="Original Document">Original Document</option>
+                            <option value="Trusted Issuer Signature">Trusted Issuer Signature</option>
+                            <option value="DigiLocker">DigiLocker</option>
+                            <option value="Official Board Record">Official Board Record</option>
+                            <option value="Provenance Screening Only">Provenance Screening Only</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label for="docManualReviewer">Reviewer</label>
+                        <input class="form-control" id="docManualReviewer" value="Administrator" placeholder="Reviewer name">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label for="docManualSynthIdStatus">Official watermark check</label>
+                        <select class="form-control" id="docManualSynthIdStatus">
+                            <option value="Not Checked">Not Checked</option>
+                            <option value="Detected">Detected</option>
+                            <option value="Not Detected">Not Detected</option>
+                            <option value="Inconclusive">Inconclusive</option>
+                            <option value="Unsupported">Unsupported</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label for="docManualSynthIdProvider">Official detector</label>
+                        <select class="form-control" id="docManualSynthIdProvider">
+                            <option value="">Not recorded</option>
+                            <option value="Google SynthID">Google SynthID</option>
+                            <option value="OpenAI Verify">OpenAI Verify</option>
+                        </select>
+                    </div>
+                </div>
                 <div class="form-group" id="docOverallRemarksContainer" style="margin-top:12px;">
                     <label style="font-weight:600; font-size:0.9rem;">Overall Remarks</label>
                     <textarea class="form-control" id="docOverallRemarks" placeholder="Add a message for the student if any document has a discrepancy."></textarea>
@@ -1883,7 +1921,7 @@
         function getDocumentBadgeClass(status) {
             const statusStr = String(status || 'Pending').toLowerCase();
             if (statusStr === 'verified') return 'status-verified';
-            if (statusStr === 'discrepancy') return 'status-discrepancy';
+            if (statusStr === 'discrepancy' || statusStr === 'offline verification required') return 'status-discrepancy';
             if (statusStr === 'missing') return 'status-missing';
             if (statusStr === 'not applicable') return 'status-neutral';
             return 'status-pending';
@@ -1996,7 +2034,7 @@
                 const pwd = getStudentValue(s, 'PWD') || '-';
                 const status = getStudentValue(s, 'Status') || s.status || 'Pending';
                 const docStatus = getStudentValue(s, 'DocumentStatus') || 'Pending';
-                const emailSentAt = getStudentValue(s, 'DiscrepancyEmailSentAt');
+                const emailSentAt = getStudentValue(s, 'OfflineVerificationEmailSentAt') || getStudentValue(s, 'DiscrepancyEmailSentAt');
                 
                 const statusStr = String(status).toLowerCase();
                 const badgeClass = statusStr === 'allocated' ? 'status-allocated' : (statusStr === 'waitlisted' ? 'status-waitlisted' : 'status-pending');
@@ -2024,12 +2062,15 @@
         }
 
         function getStudentDocumentDefinitions(student) {
-            return [
+            const legacyDefinitions = [
                 { key: 'aadhaar', label: 'Aadhaar Document', file: 'AadhaarFile', status: 'AadhaarStatus', remarks: 'AadhaarRemarks', required: true },
                 { key: 'photo', label: 'Profile Photo', file: 'PhotoFile', status: 'PhotoStatus', remarks: 'PhotoRemarks', required: true },
                 { key: 'marksheet', label: '12th Marksheet', file: 'MarksheetFile', status: 'MarksheetStatus', remarks: 'MarksheetRemarks', required: true },
                 { key: 'pwdCertificate', label: 'PWD Certificate', file: 'PwdCertificateFile', status: 'PwdCertificateStatus', remarks: 'PwdCertificateRemarks', required: String(getStudentValue(student, 'PWD')).toLowerCase() === 'yes' }
             ];
+            return ['marksheet-only-v1', 'marksheet-provenance-v1'].includes(String(getStudentValue(student, 'DocumentPolicyVersion')))
+                ? [legacyDefinitions[2]]
+                : legacyDefinitions;
         }
 
         function openDocumentReviewModal(encodedEnroll) {
@@ -2046,9 +2087,33 @@
             const appId = getStudentValue(currentDocumentStudent, 'ApplicationID') || '-';
             document.getElementById('docReviewStudentMeta').textContent = `${name} (${enroll}) • ${appId} • ${status}`;
             document.getElementById('docOverallRemarks').value = getStudentValue(currentDocumentStudent, 'DocumentRemarks') || '';
-            document.getElementById('docEmailMeta').textContent = getStudentValue(currentDocumentStudent, 'DiscrepancyEmailSentAt')
-                ? `Last email: ${getStudentValue(currentDocumentStudent, 'DiscrepancyEmailSentAt')}`
+            document.getElementById('docEvidenceSource').value = getStudentValue(currentDocumentStudent, 'DocumentManualEvidenceSource') || '';
+            document.getElementById('docManualReviewer').value = getStudentValue(currentDocumentStudent, 'DocumentManualReviewer') || 'Administrator';
+            document.getElementById('docManualSynthIdStatus').value = getStudentValue(currentDocumentStudent, 'MarksheetSynthIdStatus') || 'Not Checked';
+            document.getElementById('docManualSynthIdProvider').value = getStudentValue(currentDocumentStudent, 'MarksheetSynthIdProvider') || '';
+            const verificationMailAt = getStudentValue(currentDocumentStudent, 'OfflineVerificationEmailSentAt') || getStudentValue(currentDocumentStudent, 'DiscrepancyEmailSentAt');
+            document.getElementById('docEmailMeta').textContent = verificationMailAt
+                ? `Last email: ${verificationMailAt}`
                 : '';
+
+            const screeningMeta = document.getElementById('docAutomatedScreeningMeta');
+            if (screeningMeta) {
+                const provider = getStudentValue(currentDocumentStudent, 'MarksheetVerificationProvider') || 'Not screened';
+                const checkedAt = getStudentValue(currentDocumentStudent, 'MarksheetVerificationCheckedAt') || '-';
+                const c2pa = getStudentValue(currentDocumentStudent, 'MarksheetC2paStatus') || 'Not checked';
+                const c2paIssuer = getStudentValue(currentDocumentStudent, 'MarksheetC2paIssuer') || '-';
+                const signature = getStudentValue(currentDocumentStudent, 'MarksheetDigitalSignatureStatus') || 'Not checked';
+                const synthId = getStudentValue(currentDocumentStudent, 'MarksheetSynthIdStatus') || 'Not checked';
+                const synthProvider = getStudentValue(currentDocumentStudent, 'MarksheetSynthIdProvider') || '-';
+                const storedChecksum = getStudentValue(currentDocumentStudent, 'MarksheetChecksum') || '-';
+                const browserChecksum = getStudentValue(currentDocumentStudent, 'MarksheetBrowserChecksum') || '-';
+                const retrievedChecksum = getStudentValue(currentDocumentStudent, 'MarksheetRetrievedChecksum') || '-';
+                const checksumMatch = storedChecksum !== '-' && retrievedChecksum !== '-' ? (storedChecksum === retrievedChecksum ? 'Match' : 'Mismatch') : 'Not checked';
+                let reasons = getStudentValue(currentDocumentStudent, 'MarksheetVerificationReasons') || '[]';
+                try { reasons = JSON.parse(reasons); } catch (e) { reasons = [String(reasons)]; }
+                const browserChecksumMatch = browserChecksum === '-' || storedChecksum === '-' ? 'Not checked' : (browserChecksum === storedChecksum ? 'Match' : 'Mismatch');
+                screeningMeta.innerHTML = `<strong>Provenance screening</strong><br>Provider: ${escapeHtml(provider)} · Checked: ${escapeHtml(checkedAt)} · Transfer checksum: ${escapeHtml(checksumMatch)} · Browser checksum: ${escapeHtml(browserChecksumMatch)}<br>C2PA: ${escapeHtml(c2pa)} · Issuer: ${escapeHtml(c2paIssuer)} · Digital signature: ${escapeHtml(signature)}<br>SynthID: ${escapeHtml(synthId)} · Detector: ${escapeHtml(synthProvider)}<br>Reasons: ${escapeHtml(Array.isArray(reasons) && reasons.length ? reasons.join(', ') : 'None')}`;
+            }
 
             const list = document.getElementById('docReviewList');
             list.innerHTML = '';
@@ -2173,18 +2238,25 @@
                 documents[key] = status;
                 remarksByDocument[key] = remarks;
                 const normalized = String(status).toLowerCase();
-                if (required && (normalized === 'discrepancy' || normalized === 'missing')) hasDiscrepancy = true;
-                if (required && (normalized === 'pending' || !normalized)) hasPending = true;
+                if (required && (normalized === 'discrepancy' || normalized === 'missing' || normalized === 'offline verification required')) hasDiscrepancy = true;
+                if (required && (normalized === 'pending' || normalized === 'screening pending' || !normalized)) hasPending = true;
             });
 
-            const documentStatus = hasDiscrepancy ? 'Discrepancy' : (hasPending ? 'Pending' : 'Verified');
+            const manualSynthIdStatus = document.getElementById('docManualSynthIdStatus')?.value || 'Not Checked';
+            const manualSynthIdProvider = document.getElementById('docManualSynthIdProvider')?.value || '';
+            const documentStatus = manualSynthIdStatus === 'Detected' ? 'Offline Verification Required' : hasDiscrepancy ? 'Discrepancy' : (hasPending ? 'Pending' : 'Verified');
             return {
                 ApplicationID: getStudentValue(currentDocumentStudent, 'ApplicationID'),
                 EnrollmentNo: getStudentValue(currentDocumentStudent, 'EnrollmentNo'),
                 documents,
                 remarksByDocument,
                 DocumentStatus: documentStatus,
-                DocumentRemarks: document.getElementById('docOverallRemarks')?.value || ''
+                DocumentRemarks: document.getElementById('docOverallRemarks')?.value || '',
+                EvidenceSource: document.getElementById('docEvidenceSource')?.value || '',
+                Reviewer: document.getElementById('docManualReviewer')?.value || 'Administrator',
+                MarksheetSynthIdStatus: manualSynthIdStatus,
+                MarksheetSynthIdProvider: manualSynthIdProvider,
+                MarksheetSynthIdDetectorVersion: manualSynthIdProvider ? 'manual-official-check' : ''
             };
         }
 
@@ -2198,8 +2270,8 @@
             Object.values(payload.documents || {}).forEach(status => {
                 const normalized = String(status || '').toLowerCase();
                 if (normalized === 'verified') summary.verified += 1;
-                if (normalized === 'discrepancy' || normalized === 'missing') summary.discrepancy += 1;
-                if (normalized === 'pending' || !normalized) summary.pending += 1;
+                if (normalized === 'discrepancy' || normalized === 'missing' || normalized === 'offline verification required') summary.discrepancy += 1;
+                if (normalized === 'pending' || normalized === 'screening pending' || !normalized) summary.pending += 1;
             });
 
             return summary;

@@ -6,6 +6,10 @@ Thumbs.db
 *.tmp
 *.log
 debug.html
+tmp/
+test/fixtures/private/
+.env
+.env.local
 
 # IDE / Editor files
 .vscode/

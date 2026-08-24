@@ -3,7 +3,11 @@
   "version": "1.0.0",
   "description": "GGSIPU East Delhi Campus Hostel Allocation System",
   "scripts": {
-    "start": "npx serve .",
+    "start": "node scripts/devServer.js",
+    "start:static": "npx serve .",
+    "test": "npm run test:document-verification && npm run test:local-verification-server && npm run test:batch-allocation",
+    "test:document-verification": "node scripts/testDocumentVerification.js",
+    "test:local-verification-server": "node scripts/testLocalVerificationServer.js",
     "test:batch-allocation": "node scripts/testBatchAllocation.js",
     "load-test:allocation": "node scripts/runAllocationLoadTest.js"
   },

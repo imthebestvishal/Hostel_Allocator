@@ -784,10 +784,10 @@
                                 <div class="timeline-title">Application Submitted</div>
                                 <div class="timeline-desc">Form completed successfully.</div>
                             </div>
-                            <div class="timeline-item completed">
+                            <div class="timeline-item active" id="documentVerificationTimelineItem">
                                 <div class="timeline-date" id="timeDate2">Automated</div>
-                                <div class="timeline-title">Verification & Priority Calculation</div>
-                                <div class="timeline-desc">Priority assigned based on university norms.</div>
+                                <div class="timeline-title">Marksheet Verification</div>
+                                <div class="timeline-desc" id="timeDesc2">Automated screening is pending.</div>
                             </div>
                             <div class="timeline-item active">
                                 <div class="timeline-date" id="timeDate3">In Progress</div>
@@ -1274,6 +1274,11 @@
             const status = statusData.status || app.Status || 'Pending';
             const priority = statusData.priority || app.Priority || 'N/A';
             const appId = statusData.applicationId || app.ApplicationID || 'GGSIPU-2026';
+            const documentVerification = statusData.documentVerification || {
+                status: app.DocumentStatus || 'Screening Pending',
+                checkedAt: app.MarksheetVerificationCheckedAt || '',
+                remarks: app.DocumentRemarks || ''
+            };
 
             // Overview Tab
             if (document.getElementById('overviewHeading')) document.getElementById('overviewHeading').textContent = `Welcome back, ${name.split(' ')[0]}!`;
@@ -1299,8 +1304,39 @@
             if (document.getElementById('appMarks')) document.getElementById('appMarks').textContent = `${app.TwelfthMarks || 0}%`;
             if (document.getElementById('appPwd')) document.getElementById('appPwd').textContent = app.PWD || 'No';
 
+            const verificationItem = document.getElementById('documentVerificationTimelineItem');
+            const verificationDate = document.getElementById('timeDate2');
+            const verificationDescription = document.getElementById('timeDesc2');
+            const verificationStatus = String(documentVerification.status || 'Screening Pending');
+            if (verificationDescription) {
+                if (verificationStatus === 'Verified') {
+                    verificationDescription.textContent = 'Document verification is complete. The application is eligible for allocation.';
+                    if (verificationItem) verificationItem.className = 'timeline-item completed';
+                } else if (verificationStatus === 'Offline Verification Required') {
+                    verificationDescription.textContent = `${documentVerification.remarks || 'The automated check could not approve the marksheet.'} Please bring the original 12th marksheet to the hostel office. Your application has not been rejected.`;
+                    verificationDescription.style.color = '#b42318';
+                    if (verificationItem) verificationItem.className = 'timeline-item active';
+                } else if (verificationStatus.includes('Original Required')) {
+                    verificationDescription.textContent = 'Automated provenance checks found no conclusive risk. Please present the original 12th marksheet for final verification.';
+                    verificationDescription.style.color = '#8a5b00';
+                    if (verificationItem) verificationItem.className = 'timeline-item active';
+                } else {
+                    verificationDescription.textContent = 'Your marksheet is queued for provenance screening.';
+                    if (verificationItem) verificationItem.className = 'timeline-item active';
+                }
+            }
+            if (verificationDate) verificationDate.textContent = documentVerification.checkedAt ? new Date(documentVerification.checkedAt).toLocaleDateString('en-IN') : 'In progress';
+
             // Timeline Updates
             updateAllotmentProbability(statusData, status);
+            if (verificationStatus !== 'Verified' && status !== 'Allocated') {
+                const allocationDescription = document.getElementById('timeDesc3');
+                const probabilityCard = document.getElementById('allotmentProbabilityCard');
+                if (allocationDescription) allocationDescription.firstChild.textContent = 'Allocation is paused until marksheet verification is complete. ';
+                if (probabilityCard) probabilityCard.style.display = 'none';
+            } else if (document.getElementById('allotmentProbabilityCard')) {
+                document.getElementById('allotmentProbabilityCard').style.display = '';
+            }
             if (document.getElementById('timeDesc4')) {
                 if (status === 'Allocated') {
                     document.getElementById('timeDesc4').textContent = `Room ${statusData.allocatedRoom || alloc.RoomNumber} Allocated in ${statusData.allocatedHostel || alloc.HostelName}.`;

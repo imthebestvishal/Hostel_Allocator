@@ -412,6 +412,9 @@ function localCalculateProbability(student) {
 // ── Core request function ─────────────────────────────────────────────────
 async function gasRequest(action, method = 'GET', data = null, params = null, requestOptions = {}) {
   const runRequest = async () => {
+    if (['localhost', '127.0.0.1'].includes(window.location.hostname)) {
+      return handleLocalFallback(action, data, params);
+    }
     let timeoutId = null;
     try {
     let url = GAS_CONFIG.URL;
@@ -501,6 +504,208 @@ function normalizeNoticeAudience(value) {
   return 'Student';
 }
 
+function localNormalizePersonName(value) {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function localNamesAreConsistent(submittedName, extractedName) {
+  const submitted = localNormalizePersonName(submittedName);
+  const extracted = localNormalizePersonName(extractedName);
+  if (!submitted || !extracted) return false;
+  if (submitted === extracted || submitted.includes(extracted) || extracted.includes(submitted)) return true;
+  const a = submitted.split(' ').filter(token => token.length > 1);
+  const b = extracted.split(' ').filter(token => token.length > 1);
+  const shared = a.filter(token => b.includes(token)).length;
+  return shared >= Math.max(1, Math.min(a.length, b.length) - 1);
+}
+
+function localDecideMarksheetVerification(screening) {
+  const result = screening || {};
+  const metadata = result.metadata || {};
+  const c2pa = result.c2pa || {};
+  const signature = result.digitalSignature || {};
+  const synth = result.synthId || {};
+  const reasons = [];
+  if (result.verifierConfigured === false) reasons.push('PROVENANCE_VERIFIER_UNAVAILABLE');
+  if (result.checksumMatch === false) reasons.push('FILE_CHANGED_DURING_TRANSFER');
+  if (c2pa.status === 'Invalid') reasons.push('C2PA_INVALID');
+  if (c2pa.status === 'Untrusted') reasons.push('C2PA_UNTRUSTED');
+  if (signature.status === 'Invalid') reasons.push('DIGITAL_SIGNATURE_INVALID');
+  if (signature.status === 'Untrusted') reasons.push('DIGITAL_SIGNATURE_UNTRUSTED');
+  if (metadata.timestampContradiction === true) reasons.push('TIMESTAMP_INCONSISTENCY');
+  if (c2pa.status === 'Valid' && c2pa.aiGenerated === true) reasons.push('AI_PROVENANCE_DETECTED');
+  if (synth.status === 'Detected' && synth.officialDetector === true) reasons.push('AI_PROVENANCE_DETECTED');
+  if (synth.status === 'Detected' && synth.officialDetector !== true) reasons.push('UNTRUSTED_WATERMARK_RESULT');
+  const reasonCodes = reasons.filter((reason, index) => reasons.indexOf(reason) === index);
+  const trustedIssuer = (c2pa.status === 'Valid' && c2pa.trustedIssuer === true && c2pa.aiGenerated !== true) ||
+    (signature.status === 'Valid' && signature.trustedIssuer === true);
+  const status = reasonCodes.length ? 'Offline Verification Required' : trustedIssuer ? 'Verified' : 'Provenance Check Passed — Original Required';
+  return {
+    status,
+    remarks: status === 'Verified' ? 'Trusted issuer provenance was validated.' : status === 'Offline Verification Required'
+      ? 'Automated provenance checks require review of the original document.'
+      : 'No conclusive provenance risk was detected. Please present the original document for final verification.',
+    reasonCodes,
+    provenance: result
+  };
+}
+
+async function localSha256Base64(base64) {
+  const binary = atob(String(base64 || ''));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i) & 255;
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest)).map(value => value.toString(16).padStart(2, '0')).join('');
+}
+
+function validateLocalMarksheetPayload(fileData) {
+  if (!fileData || !fileData.data) throw new Error('Upload the required 12th marksheet.');
+  let binary;
+  try { binary = atob(String(fileData.data)); } catch (error) { throw new Error('The marksheet upload is not valid base64 data.'); }
+  if (!binary.length) throw new Error('The marksheet file is empty.');
+  if (binary.length > 10 * 1024 * 1024) throw new Error('The marksheet must be 10 MB or smaller.');
+  const byte = index => binary.charCodeAt(index) & 255;
+  const pdf = binary.slice(0, 5) === '%PDF-' && binary.slice(Math.max(0, binary.length - 2048)).includes('%%EOF');
+  const jpeg = binary.length >= 3 && byte(0) === 0xff && byte(1) === 0xd8 && byte(2) === 0xff;
+  const pngSig = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  const png = binary.length >= 8 && pngSig.every((value, index) => byte(index) === value);
+  const detected = pdf ? 'application/pdf' : (jpeg ? 'image/jpeg' : (png ? 'image/png' : ''));
+  if (!detected) throw new Error('Upload a valid PDF, JPEG, or PNG marksheet.');
+  const declared = String(fileData.type || '').toLowerCase();
+  if (declared && declared !== detected && !(declared === 'image/jpg' && detected === 'image/jpeg')) {
+    throw new Error('The file content does not match its declared type.');
+  }
+  return { mimeType: detected, size: binary.length };
+}
+
+async function runLocalMarksheetScreening(enrollmentNo, suppliedResult) {
+  const students = getLocalStudents();
+  const student = students.find(item => String(item.EnrollmentNo || '').trim().toLowerCase() === String(enrollmentNo || '').trim().toLowerCase());
+  if (!student) throw new Error('Local student record not found for marksheet screening.');
+  const localDataUrl = String(student.MarksheetFile || '');
+  const localSeparator = localDataUrl.indexOf(',');
+  const localBase64 = localSeparator >= 0 ? localDataUrl.slice(localSeparator + 1) : '';
+  if (localBase64) {
+    const browserChecksum = await localSha256Base64(localBase64);
+    student.MarksheetChecksum = student.MarksheetChecksum || browserChecksum;
+    student.MarksheetBrowserChecksum = student.MarksheetBrowserChecksum || browserChecksum;
+  }
+  let screening = suppliedResult;
+  if (!screening && typeof window.__HOSTEL_MARKSHEET_SCREENING_MOCK__ === 'function') {
+    screening = await window.__HOSTEL_MARKSHEET_SCREENING_MOCK__(student);
+  }
+  if (!screening && ['localhost', '127.0.0.1'].includes(window.location.hostname)) {
+    const testName = String(student.LocalMarksheetOriginalName || '').toLowerCase();
+    if (testName.includes('clean-test-marksheet')) {
+      screening = {
+        verifierConfigured: true, checksumMatch: true, metadata: { summary: {}, editingSoftware: [], warnings: [] },
+        c2pa: { status: 'Valid', issuer: 'TEST EDUCATION BOARD', trustedIssuer: true, aiGenerated: false },
+        digitalSignature: { status: 'Valid', issuer: 'TEST EDUCATION BOARD', trustedIssuer: true },
+        synthId: { status: 'Not Detected', provider: 'test', detectorVersion: '1', officialDetector: true }
+      };
+    } else if (testName.includes('suspicious-test-marksheet')) {
+      screening = {
+        verifierConfigured: true, checksumMatch: true, metadata: { summary: { Software: 'Test Generator' }, editingSoftware: ['Test Generator'], warnings: [] },
+        c2pa: { status: 'Valid', issuer: 'TEST AI GENERATOR', trustedIssuer: true, aiGenerated: true },
+        digitalSignature: { status: 'Absent', trustedIssuer: false },
+        synthId: { status: 'Detected', provider: 'test', detectorVersion: '1', officialDetector: true }
+      };
+    }
+  }
+  if (!screening && ['localhost', '127.0.0.1'].includes(window.location.hostname)) {
+    if (!localBase64) throw new Error('The locally stored marksheet data is unavailable.');
+    const response = await fetch('/api/verify-marksheet', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        document: {
+          name: student.LocalMarksheetOriginalName || '12th-marksheet',
+          type: student.MarksheetMimeType || '',
+          data: localBase64
+        },
+        expectedChecksum: student.MarksheetChecksum
+      })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.success || !payload.screening) throw new Error(payload.error || `Local verification request failed (${response.status}).`);
+    screening = payload.screening;
+  }
+  if (!screening) return { status: student.DocumentStatus, pending: true };
+  screening.retrievedChecksum = screening.retrievedChecksum || student.MarksheetChecksum || '';
+  screening.checksumMatch = screening.checksumMatch !== false && (!student.MarksheetChecksum || screening.retrievedChecksum === student.MarksheetChecksum);
+  const decision = localDecideMarksheetVerification(screening);
+  student.MarksheetStatus = decision.status;
+  student.DocumentStatus = decision.status;
+  student.MarksheetRemarks = decision.remarks;
+  student.DocumentRemarks = decision.remarks;
+  student.MarksheetVerificationCheckedAt = new Date().toISOString();
+  student.MarksheetVerificationProvider = 'Provenance';
+  student.MarksheetVerificationModel = 'metadata-c2pa-synthid-v1';
+  student.MarksheetVerificationReasons = JSON.stringify(decision.reasonCodes);
+  student.MarksheetRetrievedChecksum = screening.retrievedChecksum || student.MarksheetChecksum || '';
+  student.MarksheetMetadataSummary = JSON.stringify(screening.metadata || {});
+  student.MarksheetC2paStatus = screening.c2pa?.status || 'Unsupported';
+  student.MarksheetC2paIssuer = screening.c2pa?.issuer || '';
+  student.MarksheetC2paSigningTime = screening.c2pa?.signingTime || '';
+  student.MarksheetDigitalSignatureStatus = screening.digitalSignature?.status || 'Unsupported';
+  student.MarksheetSynthIdStatus = screening.synthId?.status || 'Not Checked';
+  student.MarksheetSynthIdProvider = screening.synthId?.provider || '';
+  student.MarksheetSynthIdDetectorVersion = screening.synthId?.detectorVersion || '';
+  student.MarksheetScreeningAttempts = Number(student.MarksheetScreeningAttempts || 0) + 1;
+  if (decision.status === 'Offline Verification Required' && !student.OfflineVerificationEmailSentAt) {
+    student.OfflineVerificationEmailSentAt = new Date().toISOString();
+    try {
+      const log = JSON.parse(localStorage.getItem('ggsipu_hostel_email_log') || '[]');
+      log.push({ type: 'offline-verification', applicationId: student.ApplicationID, enrollmentNo: student.EnrollmentNo, to: student.Email, sentAt: student.OfflineVerificationEmailSentAt });
+      localStorage.setItem('ggsipu_hostel_email_log', JSON.stringify(log));
+    } catch (e) {}
+  }
+  saveLocalStudents(students);
+  LOCAL_MOCK_STORE.students = students;
+  return decision;
+}
+
+function recordLocalScreeningFailure(enrollmentNo, error) {
+  const students = getLocalStudents();
+  const student = students.find(item => String(item.EnrollmentNo || '').trim().toLowerCase() === String(enrollmentNo || '').trim().toLowerCase());
+  if (!student || String(student.DocumentStatus) !== 'Screening Pending') return { retry: false };
+  const attempts = Number(student.MarksheetScreeningAttempts || 0) + 1;
+  const finalAttempt = attempts >= 3;
+  student.MarksheetScreeningAttempts = attempts;
+  student.MarksheetVerificationLastError = String(error && error.message || error).slice(0, 500);
+  student.MarksheetRemarks = finalAttempt
+    ? 'Automated screening could not complete. Please bring the original 12th marksheet for offline verification.'
+    : `Automated screening attempt ${attempts} failed and will be retried.`;
+  student.DocumentRemarks = student.MarksheetRemarks;
+  if (finalAttempt) {
+    student.MarksheetStatus = 'Offline Verification Required';
+    student.DocumentStatus = 'Offline Verification Required';
+    student.MarksheetVerificationCheckedAt = new Date().toISOString();
+    if (!student.OfflineVerificationEmailSentAt) {
+      student.OfflineVerificationEmailSentAt = new Date().toISOString();
+      try {
+        const log = JSON.parse(localStorage.getItem('ggsipu_hostel_email_log') || '[]');
+        log.push({ type: 'offline-verification', applicationId: student.ApplicationID, enrollmentNo: student.EnrollmentNo, to: student.Email, sentAt: student.OfflineVerificationEmailSentAt });
+        localStorage.setItem('ggsipu_hostel_email_log', JSON.stringify(log));
+      } catch (e) {}
+    }
+  }
+  saveLocalStudents(students);
+  LOCAL_MOCK_STORE.students = students;
+  return { retry: !finalAttempt, attempts };
+}
+
+async function scheduleLocalMarksheetScreening(enrollmentNo) {
+  try {
+    return await runLocalMarksheetScreening(enrollmentNo);
+  } catch (error) {
+    console.warn('Local marksheet screening attempt failed.', error);
+    const failure = recordLocalScreeningFailure(enrollmentNo, error);
+    if (failure.retry) setTimeout(() => scheduleLocalMarksheetScreening(enrollmentNo), Math.min(2000, failure.attempts * 500));
+    return failure;
+  }
+}
+
 function handleLocalFallback(action, data, params) {
   const students = getLocalStudents();
 
@@ -588,6 +793,8 @@ function handleLocalFallback(action, data, params) {
 
       const isAllocated = String(s.Status || '').toLowerCase() === 'allocated';
       const alloc = LOCAL_MOCK_STORE.allocations.find(a => String(a.EnrollmentNo).trim().toLowerCase() === enrollInput);
+      const applicationDetails = { ...s };
+      ['MarksheetChecksum', 'MarksheetBrowserChecksum', 'MarksheetRetrievedChecksum', 'MarksheetMetadataSummary', 'MarksheetC2paIssuer', 'MarksheetC2paSigningTime', 'MarksheetSynthIdProvider', 'MarksheetSynthIdDetectorVersion', 'MarksheetVerificationReasons', 'MarksheetVerificationLastError', 'DocumentAuditLog'].forEach(key => { delete applicationDetails[key]; });
       return {
         success: true,
         name: s.Name || s.name || 'Student',
@@ -595,14 +802,30 @@ function handleLocalFallback(action, data, params) {
         applicationId: s.ApplicationID || 'GGSIPU-2026',
         status: s.Status || 'Pending',
         priority: s.Priority || 5,
-        applicationDetails: s,
+        applicationDetails,
         allocation: alloc || null,
         allocatedRoom: alloc ? alloc.RoomNumber : null,
         allocatedHostel: alloc ? alloc.HostelName : null,
-        allotmentProbability: isAllocated ? null : localCalculateProbability(s)
+        allotmentProbability: isAllocated ? null : localCalculateProbability(s),
+        documentVerification: {
+          status: s.DocumentStatus || 'Screening Pending',
+          checkedAt: s.MarksheetVerificationCheckedAt || '',
+          remarks: s.DocumentRemarks || '',
+          instructions: String(s.DocumentStatus || '').toLowerCase() === 'offline verification required'
+            ? 'Please bring the original 12th marksheet to the hostel office for offline verification.'
+            : String(s.DocumentStatus || '').toLowerCase().includes('original required')
+              ? 'Automated provenance checks completed. Please present the original 12th marksheet for final verification.'
+              : ''
+        }
       };
     }
     case 'submitApplication': {
+      let localFileValidation;
+      try {
+        localFileValidation = validateLocalMarksheetPayload(data && data.documents && data.documents.marksheet);
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
       const appId = 'GGSIPU-2026-' + Math.random().toString(36).substring(2, 7).toUpperCase();
       const enroll = data.EnrollmentNo || data.rollNo || '00000000000';
       const name = data.Name || data.name || 'Applicant';
@@ -632,32 +855,46 @@ function handleLocalFallback(action, data, params) {
         Status: 'Pending',
         Priority: priority,
         Timestamp: new Date().toISOString(),
-        AadhaarFile: 'https://images.unsplash.com/photo-1544717305-2782549b5136?w=600',
-        PhotoFile: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400',
-        MarksheetFile: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=600',
-        PwdCertificateFile: pwd === 'Yes' ? 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=600' : 'Not Applicable',
-        AadhaarStatus: 'Pending',
-        PhotoStatus: 'Pending',
-        MarksheetStatus: 'Pending',
-        PwdCertificateStatus: pwd === 'Yes' ? 'Pending' : 'Not Applicable',
+        AadhaarFile: 'Not Applicable',
+        PhotoFile: 'Not Applicable',
+        MarksheetFile: data.documents?.marksheet ? `data:${data.documents.marksheet.type};base64,${data.documents.marksheet.data}` : '',
+        MarksheetFileId: 'local-' + appId,
+        MarksheetMimeType: localFileValidation.mimeType,
+        MarksheetFileSize: localFileValidation.size,
+        MarksheetBrowserChecksum: data.documents?.marksheet?.browserChecksum || '',
+        LocalMarksheetOriginalName: data.documents?.marksheet?.name || '',
+        PwdCertificateFile: 'Not Applicable',
+        AadhaarStatus: 'Not Applicable',
+        PhotoStatus: 'Not Applicable',
+        MarksheetStatus: 'Screening Pending',
+        PwdCertificateStatus: 'Not Applicable',
         AadhaarRemarks: '',
         PhotoRemarks: '',
         MarksheetRemarks: '',
         PwdCertificateRemarks: '',
-        DocumentStatus: 'Pending',
-        DocumentRemarks: '',
-        DiscrepancyEmailSentAt: ''
+        DocumentStatus: 'Screening Pending',
+        DocumentRemarks: 'Automated provenance screening is pending.',
+        DiscrepancyEmailSentAt: '',
+        OfflineVerificationEmailSentAt: '',
+        DocumentPolicyVersion: 'marksheet-provenance-v1',
+        MarksheetScreeningAttempts: 0
       };
 
       const updatedList = [newStudent, ...students.filter(st => String(st.EnrollmentNo).trim() !== String(enroll).trim())];
       saveLocalStudents(updatedList);
       LOCAL_MOCK_STORE.students = updatedList;
-      return { success: true, applicationId: appId, message: 'Application submitted successfully!' };
+      setTimeout(() => scheduleLocalMarksheetScreening(enroll), 25);
+      return { success: true, applicationId: appId, documentStatus: 'Screening Pending', message: 'Application submitted successfully!' };
     }
     case 'updateDocumentVerification': {
       const targetEnroll = String(data.EnrollmentNo || '').trim().toLowerCase();
       const s = students.find(st => String(st.EnrollmentNo || st.rollNo || '').trim().toLowerCase() === targetEnroll);
       if (!s) return { success: false, error: 'Student record not found.' };
+      const evidenceSource = String(data.EvidenceSource || data.evidenceSource || '').trim();
+      if (data.DocumentStatus === 'Verified' && !['Original Document', 'Trusted Issuer Signature', 'DigiLocker', 'Official Board Record'].includes(evidenceSource)) {
+        return { success: false, error: 'Verified status requires an approved evidence source.' };
+      }
+      const previousStatus = s.DocumentStatus || '';
       const docs = data.documents || {};
       const rems = data.remarksByDocument || {};
       if (docs.aadhaar) s.AadhaarStatus = docs.aadhaar;
@@ -669,7 +906,31 @@ function handleLocalFallback(action, data, params) {
       if (rems.marksheet !== undefined) s.MarksheetRemarks = rems.marksheet;
       if (rems.pwdCertificate !== undefined) s.PwdCertificateRemarks = rems.pwdCertificate;
       s.DocumentStatus = data.DocumentStatus || s.DocumentStatus;
+      if (data.MarksheetSynthIdStatus) s.MarksheetSynthIdStatus = data.MarksheetSynthIdStatus;
+      if (data.MarksheetSynthIdProvider !== undefined) s.MarksheetSynthIdProvider = data.MarksheetSynthIdProvider;
+      if (data.MarksheetSynthIdDetectorVersion !== undefined) s.MarksheetSynthIdDetectorVersion = data.MarksheetSynthIdDetectorVersion;
+      if (data.MarksheetSynthIdStatus === 'Detected' && ['Google SynthID', 'OpenAI Verify'].includes(data.MarksheetSynthIdProvider)) {
+        s.DocumentStatus = 'Offline Verification Required';
+        s.MarksheetVerificationReasons = JSON.stringify(['AI_PROVENANCE_DETECTED']);
+      }
       s.DocumentRemarks = data.DocumentRemarks !== undefined ? data.DocumentRemarks : s.DocumentRemarks;
+      s.DocumentPreviousStatus = previousStatus;
+      s.DocumentManualReviewer = data.Reviewer || data.reviewer || 'Administrator';
+      s.DocumentManualReviewedAt = new Date().toISOString();
+      s.DocumentManualEvidenceSource = evidenceSource;
+      let audit = [];
+      try { audit = JSON.parse(s.DocumentAuditLog || '[]'); } catch (e) { audit = []; }
+      if (!Array.isArray(audit)) audit = [];
+      audit.push({ at: s.DocumentManualReviewedAt, reviewer: s.DocumentManualReviewer, evidenceSource, previousStatus, newStatus: s.DocumentStatus, remarks: s.DocumentRemarks || '' });
+      s.DocumentAuditLog = JSON.stringify(audit.slice(-50));
+      if (s.DocumentStatus === 'Offline Verification Required' && !s.OfflineVerificationEmailSentAt) {
+        s.OfflineVerificationEmailSentAt = new Date().toISOString();
+        try {
+          const log = JSON.parse(localStorage.getItem('ggsipu_hostel_email_log') || '[]');
+          log.push({ type: 'offline-verification', applicationId: s.ApplicationID, enrollmentNo: s.EnrollmentNo, to: s.Email, sentAt: s.OfflineVerificationEmailSentAt });
+          localStorage.setItem('ggsipu_hostel_email_log', JSON.stringify(log));
+        } catch (e) {}
+      }
       saveLocalStudents(students);
       return { success: true, message: 'Document verification updated.' };
     }
@@ -952,5 +1213,6 @@ window.HostelAPI = {
   submitApplication: (data)      => gasRequest('submitApplication', 'POST', data),
   getStudentStatus:  (no, dob)   => gasRequest('getStudentStatus',  'GET',  null, { enrollmentNo: no, dob }),
   fileGrievance:     (data)      => gasRequest('fileGrievance',     'POST', data),
+  runLocalMarksheetScreening: (enrollmentNo, result) => runLocalMarksheetScreening(enrollmentNo, result),
   askChatbot:         (message, context) => askChatbot(message, context),
 };

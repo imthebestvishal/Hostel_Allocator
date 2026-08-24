@@ -161,6 +161,42 @@ function sendApplicationConfirmation(studentData, applicationId) {
   } catch(e) {}
 }
 
+function sendOfflineVerificationRequiredEmail(studentData, decision) {
+  const applicationId = getStudentValue(studentData, 'ApplicationID') || studentData.ApplicationID || '';
+  const enrollmentNo = getStudentValue(studentData, 'EnrollmentNo') || studentData.EnrollmentNo || '';
+  const name = getStudentValue(studentData, 'Name') || studentData.Name || 'Student';
+  const email = String(getStudentValue(studentData, 'Email') || studentData.Email || '').trim();
+  if (!email) return { success: false, sent: 0, error: 'No student email is available.' };
+
+  const sheet = getSheet('Students');
+  const map = ensureStudentDocumentColumns();
+  const rows = sheet.getDataRange().getValues();
+  let rowNumber = 0;
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][0] || '').trim() === String(applicationId).trim()) {
+      rowNumber = i + 1;
+      if (map.OfflineVerificationEmailSentAt && rows[i][map.OfflineVerificationEmailSentAt - 1]) {
+        return { success: true, sent: 0, message: 'Offline-verification email was already sent.' };
+      }
+      break;
+    }
+  }
+
+  const remarks = String(decision && decision.remarks || 'The provenance check requires review of the original marksheet.');
+  const subject = `Offline Marksheet Verification Required - ${applicationId}`;
+  const plainText = `Dear ${name},\n\nYour hostel application has been submitted successfully. The automated provenance check requires review of the original document.\n\nApplication ID: ${applicationId}\nEnrollment No: ${enrollmentNo}\n\n${remarks}\n\nPlease bring the original 12th marksheet to the hostel office for offline verification. Your application has not been rejected.\n\nRegards,\nGGSIPU Hostel Administration`;
+  const htmlBody = `<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#1f2937;line-height:1.6"><h2 style="color:#2B3467">Offline Marksheet Verification Required</h2><p>Dear <strong>${name}</strong>,</p><p>Your hostel application has been submitted successfully. The automated provenance check requires review of the original document.</p><p><strong>Application ID:</strong> ${applicationId}<br><strong>Enrollment No:</strong> ${enrollmentNo}</p><p>${remarks}</p><p>Please bring the <strong>original 12th marksheet</strong> to the hostel office for offline verification. Your application has not been rejected.</p><p>Regards,<br><strong>GGSIPU Hostel Administration</strong></p></div>`;
+  try {
+    if (typeof MailApp !== 'undefined') MailApp.sendEmail({ to: email, subject: subject, body: plainText, htmlBody: htmlBody, name: 'GGSIPU Hostel Administration' });
+    else GmailApp.sendEmail(email, subject, plainText, { htmlBody: htmlBody, name: 'GGSIPU Hostel Administration' });
+    if (rowNumber && map.OfflineVerificationEmailSentAt) sheet.getRange(rowNumber, map.OfflineVerificationEmailSentAt).setValue(new Date());
+    return { success: true, sent: 1, message: `Offline-verification email sent to ${name}.` };
+  } catch (error) {
+    Logger.log('Offline verification email error: ' + error);
+    return { success: false, sent: 0, error: error.message };
+  }
+}
+
 function sendWaitlistNotification(studentData, position) {
   if (!studentData.Email) return;
   const subject = `Hostel Allocation Update - Waiting List Position ${position}`;

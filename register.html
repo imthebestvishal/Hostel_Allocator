@@ -645,7 +645,7 @@
                 </div>
                 <div class="step" data-step="4">
                     <div class="step-circle">4</div>
-                    <div class="step-label">Review</div>
+                    <div class="step-label">Documents & Review</div>
                 </div>
             </div>
 
@@ -693,42 +693,6 @@
                             <div class="error-message">Enter valid 12-digit Aadhaar</div>
                         </div>
 
-                        <div class="form-group full-width">
-                            <label for="aadhaarDoc" class="required">Aadhaar Document</label>
-                            <div class="upload-card" data-upload-card="aadhaarDoc">
-                                <div class="upload-icon" data-upload-icon>DOC</div>
-                                <div>
-                                    <div class="upload-title">Aadhaar Document</div>
-                                    <div class="upload-meta" data-upload-meta>PDF or image, required</div>
-                                </div>
-                                <div class="upload-actions">
-                                    <span class="upload-badge" data-upload-badge>Required</span>
-                                    <button type="button" class="upload-pick" data-upload-pick>Choose</button>
-                                    <button type="button" class="upload-remove" data-upload-remove>Remove</button>
-                                </div>
-                                <input class="upload-native-input" type="file" id="aadhaarDoc" name="aadhaarDoc" accept="application/pdf,image/*" required>
-                                <div class="upload-progress"><span data-upload-progress></span></div>
-                            </div>
-                            <div class="error-message">Upload Aadhaar document</div>
-                        </div>
-
-                        <div class="form-group full-width">
-                            <label for="photo">Profile Photo</label>
-                            <div class="upload-card" data-upload-card="photo">
-                                <div class="upload-icon" data-upload-icon>IMG</div>
-                                <div>
-                                    <div class="upload-title">Profile Photo</div>
-                                    <div class="upload-meta" data-upload-meta>Image file, optional</div>
-                                </div>
-                                <div class="upload-actions">
-                                    <span class="upload-badge" data-upload-badge>Optional</span>
-                                    <button type="button" class="upload-pick" data-upload-pick>Choose</button>
-                                    <button type="button" class="upload-remove" data-upload-remove>Remove</button>
-                                </div>
-                                <input class="upload-native-input" type="file" id="photo" name="photo" accept="image/*">
-                                <div class="upload-progress"><span data-upload-progress></span></div>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
@@ -799,23 +763,6 @@
                             <div class="error-message">Enter valid percentage (0-100)</div>
                         </div>
 
-                        <div class="form-group full-width">
-                            <label for="marksheet">12th Marksheet</label>
-                            <div class="upload-card" data-upload-card="marksheet">
-                                <div class="upload-icon" data-upload-icon>DOC</div>
-                                <div>
-                                    <div class="upload-title">12th Marksheet</div>
-                                    <div class="upload-meta" data-upload-meta>PDF or image, optional</div>
-                                </div>
-                                <div class="upload-actions">
-                                    <span class="upload-badge" data-upload-badge>Optional</span>
-                                    <button type="button" class="upload-pick" data-upload-pick>Choose</button>
-                                    <button type="button" class="upload-remove" data-upload-remove>Remove</button>
-                                </div>
-                                <input class="upload-native-input" type="file" id="marksheet" name="marksheet" accept="application/pdf,image/*">
-                                <div class="upload-progress"><span data-upload-progress></span></div>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
@@ -862,31 +809,11 @@
                         <div class="form-group">
                             <label class="required">Are you a Person with Disability (PWD)?</label>
                             <div class="radio-group">
-                                <label class="radio-label"><input type="radio" name="pwd" value="Yes" required onchange="togglePwdDocument(true)"> Yes</label>
-                                <label class="radio-label"><input type="radio" name="pwd" value="No" onchange="togglePwdDocument(false)"> No</label>
+                                <label class="radio-label"><input type="radio" name="pwd" value="Yes" required> Yes</label>
+                                <label class="radio-label"><input type="radio" name="pwd" value="No"> No</label>
                             </div>
                             <div class="error-message">Please select an option</div>
                         </div>
-
-                        <div class="form-group full-width hidden" id="pwdDocGroup">
-                            <label>Disability Certificate</label>
-                            <div class="upload-card" data-upload-card="pwdDoc">
-                                <div class="upload-icon" data-upload-icon>DOC</div>
-                                <div>
-                                    <div class="upload-title">PWD Certificate</div>
-                                    <div class="upload-meta" data-upload-meta>PDF or image, required for PWD students</div>
-                                </div>
-                                <div class="upload-actions">
-                                    <span class="upload-badge" data-upload-badge>Conditional</span>
-                                    <button type="button" class="upload-pick" data-upload-pick>Choose</button>
-                                    <button type="button" class="upload-remove" data-upload-remove>Remove</button>
-                                </div>
-                                <input class="upload-native-input" type="file" id="pwdDoc" name="pwdDoc" accept="application/pdf,image/*">
-                                <div class="upload-progress"><span data-upload-progress></span></div>
-                            </div>
-                        </div>
-
-
 
                         <div class="form-group">
                             <label for="roommate">Roommate Preference (Optional)</label>
@@ -897,6 +824,25 @@
 
                 <!-- Step 4: Review & Submit -->
                 <div class="form-step" id="step4">
+                    <div class="form-group full-width" style="margin-bottom:1.5rem;">
+                        <label for="marksheet" class="required">12th Marksheet</label>
+                        <div class="upload-card" data-upload-card="marksheet">
+                            <div class="upload-icon" data-upload-icon>DOC</div>
+                            <div>
+                                <div class="upload-title">Upload 12th Marksheet</div>
+                                <div class="upload-meta" data-upload-meta>PDF, JPEG, or PNG up to 10 MB, required</div>
+                            </div>
+                            <div class="upload-actions">
+                                <span class="upload-badge" data-upload-badge>Required</span>
+                                <button type="button" class="upload-pick" data-upload-pick>Choose</button>
+                                <button type="button" class="upload-remove" data-upload-remove>Remove</button>
+                            </div>
+                            <input class="upload-native-input" type="file" id="marksheet" name="marksheet" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" required>
+                            <div class="upload-progress"><span data-upload-progress></span></div>
+                        </div>
+                        <div class="error-message">Upload a valid 12th marksheet (PDF, JPEG, or PNG, maximum 10 MB)</div>
+                    </div>
+
                     <div id="reviewContent">
                         <!-- Populated via JS -->
                     </div>
@@ -930,7 +876,7 @@
             <h2>Registration Successful!</h2>
             <p>Your application for hostel accommodation has been submitted successfully.</p>
             <div class="app-id-box" id="appIdDisplay">APP-XXXXXX</div>
-            <p style="color: var(--c-muted); font-size: 0.875rem; margin-bottom: 1.5rem;">Please save this Application ID for future reference.</p>
+            <p id="screeningStatusMessage" style="color: var(--c-muted); font-size: 0.875rem; margin-bottom: 1.5rem;">Your marksheet is queued for automated screening. Save this Application ID and check the student portal for the result.</p>
             <a href="index.html" class="btn btn-primary" style="display: block; text-decoration: none;">Return to Home</a>
         </div>
     </div>
@@ -942,10 +888,7 @@
         const stepperItems = document.querySelectorAll('.step');
         let publicSettings = { registrationOpen: true, registrationCloseDate: '' };
         const uploadConfigs = {
-            aadhaarDoc: { empty: 'PDF or image, required', emptyBadge: 'Required', required: true },
-            photo: { empty: 'Image file, optional', emptyBadge: 'Optional', required: false },
-            marksheet: { empty: 'PDF or image, optional', emptyBadge: 'Optional', required: false },
-            pwdDoc: { empty: 'PDF or image, required for PWD students', emptyBadge: 'Conditional', required: false }
+            marksheet: { empty: 'PDF, JPEG, or PNG up to 10 MB, required', emptyBadge: 'Required', required: true }
         };
 
         window.addEventListener('DOMContentLoaded', async () => {
@@ -1055,10 +998,16 @@
                 return true;
             }
             const kind = getFileKind(file);
-            const accept = String(input.getAttribute('accept') || '');
-            const allowed = kind === 'PDF' || (kind === 'Image' && accept.includes('image'));
+            const mime = String(file.type || '').toLowerCase();
+            const extensionAllowed = /\.(pdf|jpe?g|png)$/i.test(file.name || '');
+            const allowed = kind === 'PDF' || (kind === 'Image' && ['image/jpeg', 'image/png'].includes(mime));
             if (!allowed || kind === 'Unsupported') {
-                setUploadState(inputId, 'error', 'Unsupported file. Please choose a PDF or image.');
+                setUploadState(inputId, 'error', 'Upload a PDF, JPEG, or PNG marksheet.');
+                input.value = '';
+                return false;
+            }
+            if (!extensionAllowed || file.size <= 0 || file.size > 10 * 1024 * 1024) {
+                setUploadState(inputId, 'error', file.size > 10 * 1024 * 1024 ? 'The marksheet must be 10 MB or smaller.' : 'The selected file is empty or has an unsupported extension.');
                 input.value = '';
                 return false;
             }
@@ -1083,22 +1032,6 @@
                 input.addEventListener('change', () => validateSelectedFile(inputId));
                 setUploadState(inputId, 'empty');
             });
-        }
-
-        function togglePwdDocument(isRequired) {
-            const group = document.getElementById('pwdDocGroup');
-            const input = document.getElementById('pwdDoc');
-            if (isRequired) {
-                group?.classList.remove('hidden');
-                input?.setAttribute('required', 'required');
-                uploadConfigs.pwdDoc.required = true;
-                if (!input?.files?.length) setUploadState('pwdDoc', 'empty', 'PDF or image, required');
-            } else {
-                group?.classList.add('hidden');
-                input?.removeAttribute('required');
-                uploadConfigs.pwdDoc.required = false;
-                clearUpload('pwdDoc');
-            }
         }
 
         function showStep(n) {
@@ -1281,13 +1214,21 @@
                     const pct = Math.max(12, Math.min(94, Math.round((event.loaded / event.total) * 94)));
                     setUploadState(inputId, 'preparing', `Preparing ${file.name}`, { progress: pct });
                 };
-                reader.onload = () => {
+                reader.onload = async () => {
                     const result = String(reader.result || '');
+                    let browserChecksum = '';
+                    try {
+                        const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+                        browserChecksum = Array.from(new Uint8Array(digest)).map(value => value.toString(16).padStart(2, '0')).join('');
+                    } catch (error) {
+                        console.warn('Browser checksum could not be calculated.', error);
+                    }
                     setUploadState(inputId, 'ready', `${file.name} • ${formatFileSize(file.size)}`, { progress: 100 });
                     resolve({
                         name: file.name,
                         type: file.type || 'application/octet-stream',
-                        data: result.includes(',') ? result.split(',')[1] : result
+                        data: result.includes(',') ? result.split(',')[1] : result,
+                        browserChecksum
                     });
                 };
                 reader.onerror = () => {
@@ -1307,7 +1248,7 @@
             const prevBtn = document.getElementById('prevBtn');
             const submissionPanel = document.getElementById('submissionPanel');
             const submissionPanelText = document.getElementById('submissionPanelText');
-            const documentIds = ['aadhaarDoc', 'photo', 'marksheet', 'pwdDoc'];
+            const documentIds = ['marksheet'];
             btn.innerText = 'Submitting...';
             btn.disabled = true;
             if (prevBtn) prevBtn.disabled = true;
@@ -1319,12 +1260,7 @@
                     const input = document.getElementById(id);
                     if (input?.files?.length) setUploadState(id, 'preparing', `Preparing ${input.files[0].name}`, { progress: 8 });
                 });
-                const [aadhaarDoc, photoDoc, marksheetDoc, pwdDoc] = await Promise.all([
-                    fileToPayload('aadhaarDoc'),
-                    fileToPayload('photo'),
-                    fileToPayload('marksheet'),
-                    fileToPayload('pwdDoc')
-                ]);
+                const marksheetDoc = await fileToPayload('marksheet');
                 documentIds.forEach(id => {
                     const input = document.getElementById(id);
                     if (input?.files?.length) setUploadState(id, 'uploading', `Uploading ${input.files[0].name}`, { progress: 100 });
@@ -1352,10 +1288,7 @@
                     HostelPref: (document.querySelector('input[name="gender"]:checked')?.value === 'Female') ? 'Girls Hostel' : 'Boys Hostel',
                     RoommatePreference: document.getElementById('roommate')?.value || '',
                     documents: {
-                        aadhaar: aadhaarDoc,
-                        photo: photoDoc,
-                        marksheet: marksheetDoc,
-                        pwdCertificate: pwdDoc
+                        marksheet: marksheetDoc
                     }
                 };
                 const res = await HostelAPI.submitApplication(formData);
@@ -1370,6 +1303,7 @@
                     if (input?.files?.length) setUploadState(id, 'uploaded', `${input.files[0].name} uploaded`, { progress: 100 });
                 });
                 document.getElementById('appIdDisplay').innerText = res.applicationId || 'Submitted';
+                document.getElementById('screeningStatusMessage').textContent = 'Your marksheet is queued for provenance screening. Save this Application ID and check the student portal for the result.';
                 document.getElementById('successModal').classList.add('active');
             } catch(e) {
                 console.error(e);
