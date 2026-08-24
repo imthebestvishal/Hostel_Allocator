@@ -1,8 +1,6 @@
 // GAS Web App entry point
 // Handles all GET and POST requests from the frontend
 
-const SHEET_ID = '1b4L0xvbXijBS6iDhxJ4ir86bsxWE7t6-7ZFppLZqjQI';
-
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST',

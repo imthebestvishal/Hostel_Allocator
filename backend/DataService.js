@@ -600,12 +600,15 @@ function getRoomSummary() {
   };
   
   rooms.forEach(r => {
-    const type = r.HostelType.toLowerCase();
+    const type = String(r.HostelType || '').toLowerCase();
     if (summary[type]) {
-      summary[type].total += r.Capacity;
-      summary[type].occupied += r.Occupied;
-      summary[type].vacant += r.VacantBeds;
+      summary[type].total += Math.max(0, Number(r.Capacity) || 0);
+      summary[type].occupied += Math.max(0, Number(r.Occupied) || 0);
     }
+  });
+  Object.keys(summary).forEach(type => {
+    summary[type].occupied = Math.min(summary[type].occupied, summary[type].total);
+    summary[type].vacant = Math.max(0, summary[type].total - summary[type].occupied);
   });
   return summary;
 }

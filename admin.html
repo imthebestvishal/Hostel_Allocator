@@ -329,6 +329,12 @@
             border-radius: 8px;
             border: 1px solid var(--c-border);
         }
+
+        .chart-canvas {
+            position: relative;
+            height: 310px;
+            min-height: 260px;
+        }
         
         .chart-title {
             font-weight: 600;
@@ -1042,7 +1048,7 @@
             <div class="charts-grid">
                 <div class="chart-card">
                     <div class="chart-title">Occupancy vs Capacity</div>
-                    <canvas id="barChart"></canvas>
+                    <div class="chart-canvas"><canvas id="barChart"></canvas></div>
                 </div>
                 <div class="chart-card">
                     <div class="chart-title">Allocation by Priority</div>
@@ -1736,27 +1742,56 @@
                 if (document.getElementById('statAllocatedGirls')) document.getElementById('statAllocatedGirls').textContent = allocatedGirls;
                 if (document.getElementById('statPendingWaitlist')) document.getElementById('statPendingWaitlist').textContent = waitlisted + pending;
 
-                const boyStats = data.boyStats || { total: 264, occupied: 0, vacant: 264 };
-                const girlStats = data.girlStats || { total: 176, occupied: 0, vacant: 176 };
+                const normalizeHostelStats = (stats, fallbackTotal) => {
+                    const source = stats || {};
+                    let total = Number(source.total ?? source.capacity);
+                    let occupied = Number(source.occupied);
+                    let reportedVacant = Number(source.vacant);
+                    if (!Number.isFinite(total) || total < 0) total = fallbackTotal;
+                    if (!Number.isFinite(occupied) || occupied < 0) occupied = 0;
+                    if (!Number.isFinite(reportedVacant) || reportedVacant < 0) reportedVacant = 0;
+                    if (total === 0 && occupied + reportedVacant > 0) total = occupied + reportedVacant;
+                    occupied = Math.min(occupied, total);
+                    return { total, occupied, vacant: Math.max(0, total - occupied) };
+                };
+                const boyStats = normalizeHostelStats(data.boyStats, 264);
+                const girlStats = normalizeHostelStats(data.girlStats, 176);
 
                 // Render Bar Chart
                 const ctxBar = document.getElementById('barChart')?.getContext('2d');
                 const barData = {
-                    labels: ['Boys Hostel (264 Seats)', 'Girls Hostel (176 Seats)'],
+                    labels: [`Boys Hostel (${boyStats.total} Seats)`, `Girls Hostel (${girlStats.total} Seats)`],
                     datasets: [
-                        { label: 'Capacity', data: [boyStats.total || boyStats.capacity || 264, girlStats.total || girlStats.capacity || 176], backgroundColor: '#cbd5e1' },
-                        { label: 'Occupied', data: [boyStats.occupied || 0, girlStats.occupied || 0], backgroundColor: 'hsl(228, 52%, 29%)' },
-                        { label: 'Vacant', data: [boyStats.vacant || 264, girlStats.vacant || 176], backgroundColor: 'hsl(41, 100%, 47%)' }
+                        { label: 'Occupied', data: [boyStats.occupied, girlStats.occupied], backgroundColor: 'hsl(228, 52%, 29%)' },
+                        { label: 'Available', data: [boyStats.vacant, girlStats.vacant], backgroundColor: 'hsl(41, 100%, 47%)' }
                     ]
+                };
+                const barOptions = {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            callbacks: {
+                                footer: items => `Total capacity: ${items.reduce((sum, item) => sum + Number(item.raw || 0), 0)}`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { stacked: true, ticks: { maxRotation: 0, minRotation: 0 } },
+                        y: { stacked: true, beginAtZero: true, title: { display: true, text: 'Beds' } }
+                    }
                 };
                 if (barChart) {
                     barChart.data = barData;
+                    barChart.options = barOptions;
                     barChart.update('none');
                 } else if (ctxBar && window.Chart) {
                     barChart = new Chart(ctxBar, {
                         type: 'bar',
                         data: barData,
-                        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+                        options: barOptions
                     });
                 }
 

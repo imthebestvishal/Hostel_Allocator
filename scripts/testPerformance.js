@@ -146,6 +146,9 @@ async function main() {
   assert.match(admin, /getAdminAllocationsPage/);
   assert.match(admin, /students\.slice\(0, 50\)\.map/);
   assert.match(admin, /requestIdleCallback/);
+  assert.match(admin, /x: \{ stacked: true/);
+  assert.match(admin, /y: \{ stacked: true/);
+  assert.doesNotMatch(admin, /label: 'Capacity', data:/);
   assert.doesNotMatch(admin, /<script src="https:\/\/cdn\.jsdelivr\.net\/npm\/chart\.js"><\/script>/);
   console.log('Whole-UI performance tests passed.');
 }

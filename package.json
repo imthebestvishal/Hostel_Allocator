@@ -5,7 +5,8 @@
   "scripts": {
     "start": "node scripts/devServer.js",
     "start:static": "npx serve .",
-    "test": "npm run test:document-verification && npm run test:local-verification-server && npm run test:batch-allocation && npm run test:performance",
+    "test": "npm run test:apps-script-bundle && npm run test:document-verification && npm run test:local-verification-server && npm run test:batch-allocation && npm run test:performance",
+    "test:apps-script-bundle": "node scripts/testAppsScriptBundle.js",
     "test:document-verification": "node scripts/testDocumentVerification.js",
     "test:local-verification-server": "node scripts/testLocalVerificationServer.js",
     "test:batch-allocation": "node scripts/testBatchAllocation.js",
